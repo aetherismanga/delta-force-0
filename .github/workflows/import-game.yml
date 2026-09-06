@@ -1,0 +1,37 @@
+name: Import Delta Force 0 package
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'delta-force-0-webapp-pwa-COMPLETE.zip'
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract package
+        run: |
+          rm -rf /tmp/df0-import
+          mkdir -p /tmp/df0-import
+          unzip -q delta-force-0-webapp-pwa-COMPLETE.zip -d /tmp/df0-import
+          if [ -d /tmp/df0-import/delta-force-0-webapp ]; then
+            rsync -a /tmp/df0-import/delta-force-0-webapp/ ./
+          else
+            rsync -a /tmp/df0-import/ ./
+          fi
+          rm -f delta-force-0-webapp-pwa-COMPLETE.zip
+
+      - name: Commit extracted web app
+        run: |
+          git config user.name 'Delta Force 0 Builder'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git diff --cached --quiet || git commit -m 'Import complete Delta Force 0 Web/PWA build'
+          git push
