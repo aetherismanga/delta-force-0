@@ -109,6 +109,22 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;image-rend
 #installGameBtn{position:absolute;z-index:120;left:50%;bottom:max(14px,env(safe-area-inset-bottom));transform:translateX(-50%);display:none;min-width:210px;padding:12px 18px;border-radius:999px;border:2px solid #ffbd56;background:linear-gradient(180deg,#173450,#0a1b2b);color:#ffe8b4;font:900 14px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;box-shadow:0 12px 30px rgba(0,0,0,.48),0 0 18px rgba(255,174,66,.18);cursor:pointer}
 #installGameBtn.show{display:block}
 @media(display-mode:standalone){#installGameBtn{display:none!important}}
+
+/* === FIX CINEMATICS RUNTIME 2026-09-06 === */
+.introOverlay,.cinematicFade{position:fixed;inset:0;z-index:10000;align-items:center;justify-content:center;background:#000;opacity:0;transition:opacity .35s ease}
+.introOverlay.show,.cinematicFade.show{display:flex;opacity:1}
+.introOverlay.hidden,.cinematicFade.hidden{display:none!important}
+.introCard{position:relative;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;background:#000;overflow:hidden}
+#introVideo{width:100%;height:100%;object-fit:contain;background:#000;display:block}
+.introHud{position:absolute;left:0;right:0;top:max(14px,env(safe-area-inset-top));display:flex;justify-content:space-between;align-items:center;padding:10px 14px;pointer-events:none}
+.introTag{padding:8px 12px;border-radius:999px;background:rgba(3,13,23,.74);border:1px solid rgba(255,190,90,.38);color:#ffe4aa;font-size:12px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;text-shadow:0 2px 4px #000}
+.introSkip{pointer-events:auto;border:1px solid rgba(255,190,90,.65);border-radius:999px;background:rgba(5,18,30,.85);color:#fff;padding:9px 14px;font-weight:900}
+.introStatus{position:absolute;left:50%;bottom:max(24px,calc(env(safe-area-inset-bottom) + 18px));transform:translateX(-50%);width:min(88vw,420px);text-align:center;color:#d9edff;background:rgba(2,12,20,.72);border:1px solid rgba(90,210,255,.28);border-radius:12px;padding:9px 12px;font-size:12px;font-weight:800}
+.cinematicFade{z-index:9998;background:rgba(0,4,8,.96);flex-direction:column;text-align:center;pointer-events:none}
+.cinematicFadeCard{padding:26px 30px;border-radius:22px;border:2px solid rgba(255,174,63,.48);background:linear-gradient(180deg,rgba(8,27,43,.96),rgba(2,11,20,.98));box-shadow:0 0 42px rgba(255,136,34,.16)}
+#cinematicFadeTitle{font-size:32px;font-weight:1000;letter-spacing:.08em;color:#ffe0a0;text-transform:uppercase;text-shadow:0 3px 10px #000}
+#cinematicFadeSub{margin-top:8px;color:#8eeaff;font-size:13px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+
 </style>
 
 <link rel="manifest" href="manifest.webmanifest">
@@ -158,6 +174,14 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;image-rend
 <div id="hud" class="hidden"><div class="topHud"><div class="hudBox">Score <span id="score">0</span></div><div class="hudBox">Niv. <span id="level">1</span></div><div class="hudBox">Arme <span id="weapon">1</span></div><div class="hudBox">Temps <span id="timer">60</span></div><div id="pauseBtn" class="hudBox hudPause">❚❚</div></div><div class="bars"><div class="label">Énergie <span id="livesText">♥♥♥</span></div><div class="bar"><div id="hpFill" class="fill"></div></div><div id="bossHud"><div id="bossLabel" class="label">Boss</div><div class="bar"><div id="bossFill" class="fill"></div></div><div class="bar secondary"><div id="bossFill2" class="fill"></div></div><div id="bossSubLabel"></div></div></div><div id="redStarHud" style="position:absolute;right:18px;bottom:168px;background:rgba(8,18,32,.75);border:2px solid rgba(255,85,54,.65);border-radius:14px;padding:7px 10px;font-weight:900;color:#ff806b;text-shadow:0 1px 2px #000">★ <span id="redStarCount">0/4</span></div><button id="specialBtn">SPÉCIAL<br><span id="specialCount">x1</span></button><div id="levelBanner"></div><div id="message"></div></div>
 <div id="pauseOverlay"><div class="panel"><div class="subtitle" style="font-size:25px">Pause</div><button id="resumeBtn" class="btn primary">Reprendre</button><button id="pauseOpts" class="btn">Options</button><button id="quitBtn" class="btn">Quitter</button></div></div>
 <audio id="music" loop preload="auto"></audio>
+</div>
+
+
+<div id="cinematicFade" class="cinematicFade hidden" aria-hidden="true">
+  <div class="cinematicFadeCard">
+    <div id="cinematicFadeTitle">MISSION</div>
+    <div id="cinematicFadeSub">Préparation du décollage</div>
+  </div>
 </div>
 
 <div id="introOverlay" class="introOverlay hidden">
@@ -623,8 +647,8 @@ const AFTER_BOSS11_VIDEO_URL='assets/video/after-stage-1-1.mp4';
 let introNextLevel=0,introHandled=false,videoOverlayCallback=null,videoFallbackTimer=null;
 function getVideoUrl(key){return key==='intro'?INTRO_VIDEO_URL:AFTER_BOSS11_VIDEO_URL;}
 function stageSubtitle(level){if(level===1)return 'Transmission reçue — secteur 1.2';if(level===4)return 'Chapitre 2 — nouvelle ambiance';if(level>=4&&level<=7)return 'Chapitre 2 — front tropical / zone ennemie';return 'Préparation du décollage';}
-function showCinematicFade(title,sub='Préparation du décollage'){const ov=$('cinematicFade');$('cinematicFadeTitle').textContent=title||'Mission';$('cinematicFadeSub').textContent=sub;ov.classList.remove('hidden');requestAnimationFrame(()=>ov.classList.add('show'));}
-function hideCinematicFade(delay=120){const ov=$('cinematicFade');setTimeout(()=>{ov.classList.remove('show');setTimeout(()=>ov.classList.add('hidden'),430)},delay);}
+function showCinematicFade(title,sub='Préparation du décollage'){const ov=$('cinematicFade');if(!ov)return;const tt=$('cinematicFadeTitle'),ss=$('cinematicFadeSub');if(tt)tt.textContent=title||'Mission';if(ss)ss.textContent=sub;ov.classList.remove('hidden');requestAnimationFrame(()=>ov.classList.add('show'));}
+function hideCinematicFade(delay=120){const ov=$('cinematicFade');if(!ov)return;setTimeout(()=>{ov.classList.remove('show');setTimeout(()=>ov.classList.add('hidden'),430)},delay);}
 function launchLevelReliable(level=0){
   showCinematicFade(`NIVEAU ${stageLabel(level)}`,stageSubtitle(level));
   startGame(level);
