@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'delta-force-0-webapp-pwa-COMPLETE.zip'
+      - 'delta-force-0-webapp-pwa-COMPLETE.zip.part-*'
 
 permissions:
   contents: write
@@ -16,17 +16,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Extract package
+      - name: Rebuild and extract package
         run: |
+          COUNT=$(find . -maxdepth 1 -type f -name 'delta-force-0-webapp-pwa-COMPLETE.zip.part-*' | wc -l)
+          if [ "$COUNT" -lt 5 ]; then
+            echo "Waiting for all 5 package parts (found $COUNT)."
+            exit 0
+          fi
+          cat delta-force-0-webapp-pwa-COMPLETE.zip.part-* > /tmp/delta-force-0-webapp-pwa-COMPLETE.zip
           rm -rf /tmp/df0-import
           mkdir -p /tmp/df0-import
-          unzip -q delta-force-0-webapp-pwa-COMPLETE.zip -d /tmp/df0-import
+          unzip -q /tmp/delta-force-0-webapp-pwa-COMPLETE.zip -d /tmp/df0-import
           if [ -d /tmp/df0-import/delta-force-0-webapp ]; then
             rsync -a /tmp/df0-import/delta-force-0-webapp/ ./
           else
             rsync -a /tmp/df0-import/ ./
           fi
-          rm -f delta-force-0-webapp-pwa-COMPLETE.zip
+          rm -f delta-force-0-webapp-pwa-COMPLETE.zip.part-*
 
       - name: Commit extracted web app
         run: |
