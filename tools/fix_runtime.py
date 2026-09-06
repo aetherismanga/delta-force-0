@@ -1,0 +1,46 @@
+from pathlib import Path
+
+p = Path('index.html')
+s = p.read_text(encoding='utf-8')
+marker = '/* === FIX CINEMATICS RUNTIME 2026-09-06 === */'
+
+if marker not in s:
+    css = '''
+/* === FIX CINEMATICS RUNTIME 2026-09-06 === */
+.introOverlay,.cinematicFade{position:fixed;inset:0;z-index:10000;align-items:center;justify-content:center;background:#000;opacity:0;transition:opacity .35s ease}
+.introOverlay.show,.cinematicFade.show{display:flex;opacity:1}
+.introOverlay.hidden,.cinematicFade.hidden{display:none!important}
+.introCard{position:relative;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;background:#000;overflow:hidden}
+#introVideo{width:100%;height:100%;object-fit:contain;background:#000;display:block}
+.introHud{position:absolute;left:0;right:0;top:max(14px,env(safe-area-inset-top));display:flex;justify-content:space-between;align-items:center;padding:10px 14px;pointer-events:none}
+.introTag{padding:8px 12px;border-radius:999px;background:rgba(3,13,23,.74);border:1px solid rgba(255,190,90,.38);color:#ffe4aa;font-size:12px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;text-shadow:0 2px 4px #000}
+.introSkip{pointer-events:auto;border:1px solid rgba(255,190,90,.65);border-radius:999px;background:rgba(5,18,30,.85);color:#fff;padding:9px 14px;font-weight:900}
+.introStatus{position:absolute;left:50%;bottom:max(24px,calc(env(safe-area-inset-bottom) + 18px));transform:translateX(-50%);width:min(88vw,420px);text-align:center;color:#d9edff;background:rgba(2,12,20,.72);border:1px solid rgba(90,210,255,.28);border-radius:12px;padding:9px 12px;font-size:12px;font-weight:800}
+.cinematicFade{z-index:9998;background:rgba(0,4,8,.96);flex-direction:column;text-align:center;pointer-events:none}
+.cinematicFadeCard{padding:26px 30px;border-radius:22px;border:2px solid rgba(255,174,63,.48);background:linear-gradient(180deg,rgba(8,27,43,.96),rgba(2,11,20,.98));box-shadow:0 0 42px rgba(255,136,34,.16)}
+#cinematicFadeTitle{font-size:32px;font-weight:1000;letter-spacing:.08em;color:#ffe0a0;text-transform:uppercase;text-shadow:0 3px 10px #000}
+#cinematicFadeSub{margin-top:8px;color:#8eeaff;font-size:13px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+'''
+    s = s.replace('</style>', css + '\n</style>', 1)
+
+if 'id="cinematicFade"' not in s:
+    markup = '''
+<div id="cinematicFade" class="cinematicFade hidden" aria-hidden="true">
+  <div class="cinematicFadeCard">
+    <div id="cinematicFadeTitle">MISSION</div>
+    <div id="cinematicFadeSub">Préparation du décollage</div>
+  </div>
+</div>
+'''
+    s = s.replace('<div id="introOverlay"', markup + '\n<div id="introOverlay"', 1)
+
+old_show = "function showCinematicFade(title,sub='Préparation du décollage'){const ov=$('cinematicFade');$('cinematicFadeTitle').textContent=title||'Mission';$('cinematicFadeSub').textContent=sub;ov.classList.remove('hidden');requestAnimationFrame(()=>ov.classList.add('show'));}"
+new_show = "function showCinematicFade(title,sub='Préparation du décollage'){const ov=$('cinematicFade');if(!ov)return;const tt=$('cinematicFadeTitle'),ss=$('cinematicFadeSub');if(tt)tt.textContent=title||'Mission';if(ss)ss.textContent=sub;ov.classList.remove('hidden');requestAnimationFrame(()=>ov.classList.add('show'));}"
+s = s.replace(old_show, new_show)
+
+old_hide = "function hideCinematicFade(delay=120){const ov=$('cinematicFade');setTimeout(()=>{ov.classList.remove('show');setTimeout(()=>ov.classList.add('hidden'),430)},delay);}"
+new_hide = "function hideCinematicFade(delay=120){const ov=$('cinematicFade');if(!ov)return;setTimeout(()=>{ov.classList.remove('show');setTimeout(()=>ov.classList.add('hidden'),430)},delay);}"
+s = s.replace(old_hide, new_hide)
+
+p.write_text(s, encoding='utf-8')
+print('Runtime patch applied')
