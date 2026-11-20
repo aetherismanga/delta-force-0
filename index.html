@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Delta Force 0 — V6.0</title>
-<link rel="stylesheet" href="game.css">
+<title>Delta Force 0 — V6.1</title>
+<link rel="stylesheet" href="game.css?v=6.1">
 
 <link rel="icon" href="assets/icons/icon-192.png">
-<link rel="manifest" href="manifest.webmanifest">
+<link rel="manifest" href="manifest.webmanifest?v=6.1">
 <meta name="theme-color" content="#061521">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -22,7 +22,7 @@
 <main id="start" class="screen" style="background-image:url('assets/media/asset-2e9ebfa560b75ac4.png')">
   <div class="panel title-panel">
     <h1 class="sr-only">Delta Force 0</h1>
-    <p class="subtitle">Campagne arcade · V6.0</p>
+    <p class="subtitle">Campagne arcade · V6.1</p>
     <div class="menuActions">
       <button id="playBtn" class="btn primary">Jouer</button>
       <button id="shipsBtn" class="btn">Choix du vaisseau</button>
@@ -64,7 +64,20 @@
 <div id="opts" class="screen hidden" style="background-image:url('assets/media/asset-ee963b5b7ed4bdf8.png')"><div class="panel"><img class="logo" src="assets/media/asset-9b927fa305681cda.png"><div class="subtitle">Options</div><div class="optRow"><strong>Effets sonores</strong><div class="toggle"><button id="soundOn" class="smallBtn">ON</button><button id="soundOff" class="smallBtn">OFF</button></div></div><div class="soundCtl"><strong>Volume effets</strong><input id="soundVolume" type="range" min="0" max="100" step="5" value="75"><span id="soundVolumeVal" class="soundVal">75%</span></div><div class="optRow"><strong>Musique</strong><div class="toggle"><button id="musicOn" class="smallBtn">ON</button><button id="musicOff" class="smallBtn">OFF</button></div></div><div class="soundCtl"><strong>Volume musique</strong><input id="musicVolume" type="range" min="0" max="100" step="5" value="42"><span id="musicVolumeVal" class="soundVal">42%</span></div><div class="testMode"><div class="optRow"><strong>Invincible (mode test)</strong><div class="toggle"><button id="invOn" class="smallBtn">ON</button><button id="invOff" class="smallBtn">OFF</button></div></div><div class="tiny" style="font-size:11px;color:#f4d49d;margin-top:6px">Permet de tester les niveaux, boss et armes sans perdre de vie.</div></div><label class="optRow" for="graphicsQuality"><strong>Qualité graphique</strong><select id="graphicsQuality"><option value="auto">Automatique</option><option value="high">Élevée</option><option value="medium">Moyenne</option><option value="low">Économie</option></select></label>
     <label class="optRow" for="reduceEffects"><strong>Réduire les flashs et secousses</strong><input id="reduceEffects" type="checkbox"></label>
     <div class="subtitle" style="font-size:13px;margin-top:14px">Musiques des niveaux</div><div id="trackList" class="trackList"></div><button id="optsBack" class="btn">Retour</button></div></div>
-<div id="end" class="screen hidden" style="background-image:url('assets/media/asset-2e9ebfa560b75ac4.png')"><div class="panel"><img class="logo" src="assets/media/asset-9b927fa305681cda.png"><div id="endTitle" class="subtitle" style="font-size:27px">Mission terminée</div><div id="endText" class="tiny" style="font-size:18px;margin:12px 0"></div><dl id="resultStats" class="resultStats"></dl><button id="nextMissionBtn" class="btn primary" hidden>Mission suivante</button><button id="retryBtn" class="btn primary">Recommencer</button><button id="menuBtn" class="btn">Menu principal</button></div></div>
+<section id="end" class="screen hidden" aria-labelledby="endTitle">
+  <div class="panel debriefPanel">
+    <p id="resultSector" class="debriefSector"></p>
+    <h2 id="endTitle">Mission terminée</h2>
+    <p id="endText"></p>
+    <p id="resultAward" hidden>Quatre étoiles rouges récupérées</p>
+    <dl id="resultStats" class="resultStats"></dl>
+    <div class="debriefActions">
+      <button id="nextMissionBtn" class="btn primary" hidden>Mission suivante</button>
+      <button id="retryBtn" class="btn primary">Recommencer</button>
+      <button id="menuBtn" class="btn">Menu principal</button>
+    </div>
+  </div>
+</section>
 <div id="hud" class="hidden"><div class="topHud"><div class="hudBox">Score <span id="score">0</span></div><div class="hudBox">Niv. <span id="level">1</span></div><div class="hudBox">Arme <span id="weapon">1</span></div><div class="hudBox">Temps <span id="timer">60</span></div><button id="pauseBtn" class="hudBox hudPause" aria-label="Mettre en pause">Ⅱ</button></div><div class="bars"><div class="label">Énergie <span id="livesText">♥♥♥</span></div><div class="bar"><div id="hpFill" class="fill"></div></div><div id="bossHud"><div id="bossLabel" class="label">Boss</div><div class="bar"><div id="bossFill" class="fill"></div></div><div class="bar secondary"><div id="bossFill2" class="fill"></div></div><div id="bossSubLabel"></div><div id="bossModules" class="bossModules"></div></div></div><div id="redStarHud" style="position:absolute;right:18px;bottom:168px;background:rgba(8,18,32,.75);border:2px solid rgba(255,85,54,.65);border-radius:14px;padding:7px 10px;font-weight:900;color:#ff806b;text-shadow:0 1px 2px #000">★ <span id="redStarCount">0/4</span></div><button id="specialBtn" type="button" aria-label="Tir spécial">SPÉCIAL<br><span id="specialCount">x1</span></button><div id="levelBanner"></div><div id="message"></div></div>
 <div id="pauseOverlay"><div class="panel"><div class="subtitle" style="font-size:25px">Pause</div><button id="resumeBtn" class="btn primary">Reprendre</button><button id="pauseOpts" class="btn">Options</button><button id="quitBtn" class="btn">Quitter</button></div></div>
 <audio id="music" loop preload="none"></audio>
@@ -89,8 +102,9 @@
   </div>
 </div>
 
-<script defer src="scenery.js"></script>
-<script defer src="bosses-v6.js"></script>
-<script defer src="combat-v6.js"></script>
-<script defer src="game.js"></script>
+<script defer src="scenery.js?v=6.1"></script>
+<script defer src="bosses-v6.js?v=6.1"></script>
+<script defer src="combat-v6.js?v=6.1"></script>
+<script defer src="render.js?v=6.1"></script>
+<script defer src="game.js?v=6.1"></script>
 </body></html>

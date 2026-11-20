@@ -2,22 +2,58 @@
 
 function createCombatV6({
   S, W, H, ctx, LEVELS, ship, sfx, showMsg, spawnDrop,
-  killEnemy, hitPlayer, drawEnemyUnit, drawTurret, bossTargets, bossHit,
-  quality, reducedEffects, setSpecialStatus
+  killEnemy, hitPlayer, drawEnemyUnit, drawGroundObject, bossTargets, bossHit,
+  quality, reducedEffects, setSpecialStatus, terrainPeriod = () => H
 }) {
   const palette = {
     blue: ['#c8f9ff', '#39c4ff'], green: ['#eafaac', '#72e64c'],
     red: ['#ffe2b3', '#ff5a37'], gold: ['#fff3b0', '#ffbb43']
   };
   const roles = {
-    fighter:     {type:'green',  art:'blue',   hp:3.2, speed:142, rx:23, ry:29, rate:2.6, color:'#5ce2ff'},
-    interceptor: {type:'yellow', art:'purple', hp:4.8, speed:164, rx:24, ry:31, rate:2.5, color:'#ff9de0'},
-    bomber:      {type:'bomber', art:null,     hp:14,  speed:85,  rx:37, ry:31, rate:3.2, color:'#ff9a52'},
-    drone:       {type:'heli',   art:'heli',   hp:3.8, speed:167, rx:22, ry:24, rate:2.6, color:'#f4b3ff'},
-    diver:       {type:'red',    art:'red',    hp:4.4, speed:113, rx:23, ry:31, rate:0,   color:'#ff674c'},
-    shield:      {type:'heli',   art:'heavy',  hp:8.5, speed:92,  rx:34, ry:34, rate:3.2, color:'#8af5ff'},
-    support:     {type:'yellow', art:'green',  hp:6.5, speed:94,  rx:23, ry:28, rate:0,   color:'#a3fdb2'}
+    fighter:     {type:'green',  hp:3.2, speed:142, rx:23, ry:29, rate:2.6, color:'#5ce2ff'},
+    interceptor: {type:'yellow', hp:4.8, speed:164, rx:24, ry:31, rate:2.5, color:'#ff9de0'},
+    bomber:      {type:'bomber', hp:14,  speed:85,  rx:37, ry:31, rate:3.2, color:'#ff9a52'},
+    drone:       {type:'heli',   hp:3.8, speed:167, rx:22, ry:24, rate:2.6, color:'#f4b3ff'},
+    diver:       {type:'red',    hp:4.4, speed:113, rx:23, ry:31, rate:0,   color:'#ff674c'},
+    shield:      {type:'heli',   hp:8.5, speed:92,  rx:34, ry:34, rate:3.2, color:'#8af5ff'},
+    support:     {type:'yellow', hp:6.5, speed:94,  rx:23, ry:28, rate:0,   color:'#a3fdb2'}
   };
+  const earlyArt = {
+    fighter:     {key:'enemyAlt', rect:[25,25,174,218], facing:'up'},
+    interceptor: {key:'enemyAlt', rect:[744,25,190,221], facing:'up'},
+    bomber:      {key:'enemy', rect:[544,503,324,232], facing:'up'},
+    drone:       {key:'enemy', rect:[805,963,192,157], facing:'up'},
+    diver:       {key:'enemyAlt', rect:[17,540,193,241], facing:'up'},
+    shield:      {key:'enemyAlt', rect:[18,810,204,257], facing:'up'},
+    support:     {key:'enemyAlt', rect:[738,281,201,235], facing:'up'}
+  };
+  const lateArt = {
+    fighter:     {key:'enemyChapter2', rect:[193,26,191,187], facing:'down'},
+    interceptor: {key:'enemyChapter2', rect:[940,256,181,195], facing:'down'},
+    bomber:      earlyArt.bomber,
+    drone:       {key:'enemyChapter2', rect:[958,891,237,175], facing:'down'},
+    diver:       {key:'enemyChapter2', rect:[946,38,167,191], facing:'up'},
+    shield:      {key:'enemyChapter2', rect:[203,234,196,217], facing:'up'},
+    support:     {key:'enemyChapter2', rect:[207,460,190,209], facing:'down'}
+  };
+  const surfaceRoles = {
+    battery: {kind:'gun', hp:14, rx:25, ry:24, rate:2.8},
+    flak: {kind:'mini', hp:14, rx:25, ry:25, rate:2.25},
+    launcher: {kind:'missile', hp:18, rx:28, ry:25, rate:3.1, reward:true},
+    patrol: {kind:'gun', hp:14, rx:19, ry:35, rate:2.75, cruise:29},
+    gunboat: {kind:'plasma', hp:29, rx:30, ry:51, rate:3.15, cruise:17, reward:true}
+  };
+  // Shore positions are fixed to each terrain tile in the world, including when the map repeats.
+  const shoreSites = [
+    [[62,162],[486,166],[53,300],[480,408],[60,493],[493,604],[57,727],[483,762]],
+    [[53,156],[487,157],[62,265],[486,313],[54,448],[479,549],[55,651],[485,739]],
+    [[62,165],[471,152],[65,238],[477,359],[67,432],[476,557],[58,654],[481,743]],
+    [[58,151],[492,165],[56,277],[498,380],[62,510],[469,556],[63,657],[476,769]],
+    [[59,165],[480,173],[66,239],[476,338],[56,417],[485,536],[53,638],[478,709]],
+    [[60,147],[479,150],[56,252],[475,381],[61,449],[478,519],[59,625],[474,732]],
+    [[58,167],[479,153],[61,240],[475,328],[68,451],[477,554],[65,661],[476,758]],
+    [[72,152],[482,150],[69,238],[490,335],[68,447],[477,552],[62,654],[479,758]]
+  ];
   const hostileColors = {
     bolt: ['#fff3d9', '#ff6342'], plasma: ['#e8fbff', '#69c9ff'],
     missile: ['#fff2c7', '#ff9c41'], flame: ['#fff1a3', '#ff7140'],
@@ -31,18 +67,20 @@ function createCombatV6({
     dive:    {text:'Plongeurs détectés',                 roles:['diver','diver','fighter']},
     cover:   {text:'Interceptez le vaisseau de soutien',  roles:['shield','support','interceptor']},
     fleet:   {text:'Convoi blindé en approche',          roles:['shield','bomber','support','shield']},
-    guns:    {text:'Installations ennemies en approche', roles:['ground','ground','fighter']},
+    shore:   {text:'Batteries de rive en vue',            roles:['battery','fighter','launcher']},
+    coast:   {text:'Patrouilleur et batteries de rive', roles:['flak','patrol','launcher']},
+    river:   {text:'Vedettes armées dans le chenal',     roles:['patrol','fighter','gunboat']},
     strike:  {text:'Escadron d’assaut en approche',       roles:['drone','interceptor','diver','fighter']}
   };
   const missions = [
-    [[2,'wedge'],[8,'drones'],[14,'pincer'],[20,'guns'],[27,'bombers'],[37,'wedge'],[44,'cover'],[52,'dive']],
-    [[2,'pincer'],[8,'wedge'],[14,'guns'],[21,'bombers'],[28,'dive'],[38,'cover'],[44,'guns'],[51,'fleet']],
-    [[2,'wedge'],[8,'guns'],[15,'cover'],[22,'drones'],[29,'fleet'],[39,'pincer'],[45,'bombers'],[52,'strike']],
-    [[2,'guns'],[8,'pincer'],[15,'bombers'],[22,'drones'],[28,'cover'],[38,'guns'],[45,'dive'],[52,'fleet']],
-    [[2,'drones'],[8,'dive'],[14,'wedge'],[21,'cover'],[28,'guns'],[38,'bombers'],[44,'drones'],[51,'strike']],
-    [[2,'pincer'],[8,'guns'],[14,'bombers'],[21,'fleet'],[28,'drones'],[38,'cover'],[45,'dive'],[52,'fleet']],
-    [[2,'guns'],[8,'dive'],[14,'strike'],[20,'bombers'],[28,'guns'],[38,'cover'],[45,'dive'],[52,'fleet']],
-    [[2,'pincer'],[8,'strike'],[14,'drones'],[20,'cover'],[27,'fleet'],[36,'guns'],[43,'bombers'],[51,'strike']]
+    [[2,'wedge'],[8,'drones'],[14,'pincer'],[20,'coast'],[27,'bombers'],[37,'wedge'],[44,'cover'],[52,'dive']],
+    [[2,'pincer'],[8,'wedge'],[14,'shore'],[21,'bombers'],[28,'dive'],[38,'cover'],[44,'river'],[51,'fleet']],
+    [[2,'wedge'],[8,'shore'],[15,'cover'],[22,'drones'],[29,'fleet'],[39,'pincer'],[45,'bombers'],[52,'strike']],
+    [[2,'river'],[8,'pincer'],[15,'bombers'],[22,'drones'],[28,'cover'],[38,'coast'],[45,'dive'],[52,'fleet']],
+    [[2,'drones'],[8,'dive'],[14,'wedge'],[21,'cover'],[28,'coast'],[38,'bombers'],[44,'drones'],[51,'strike']],
+    [[2,'pincer'],[8,'river'],[14,'bombers'],[21,'fleet'],[28,'drones'],[38,'cover'],[45,'dive'],[52,'fleet']],
+    [[2,'shore'],[8,'dive'],[14,'strike'],[20,'bombers'],[28,'shore'],[38,'cover'],[45,'dive'],[52,'fleet']],
+    [[2,'pincer'],[8,'strike'],[14,'drones'],[20,'cover'],[27,'fleet'],[36,'coast'],[43,'bombers'],[51,'strike']]
   ];
   const cooldowns = {blue:15, green:17, red:15, gold:18};
   const warningQueue = [];
@@ -83,7 +121,8 @@ function createCombatV6({
     const y = opts.y ?? -48;
     const side = entry === 'left' ? 1 : entry === 'right' ? -1 : homeX < W / 2 ? 1 : -1;
     const enemy = {
-      id:'enemy-' + ++serial, targetType:'enemy', role, type:def.type, variant:def.art,
+      id:'enemy-' + ++serial, targetType:'enemy', role, type:def.type,
+      art:(S.level < 4 ? earlyArt : lateArt)[role],
       x, y, homeX, hp:health, maxHp:health, rx:def.rx, ry:def.ry,
       vx:0, vyNow:def.speed, t:0, state:'entry', stateTime:0, side, entry,
       shoot:.85 + (opts.slot ?? 0) * .36, flash:0, burst:0, burstDelay:0,
@@ -91,23 +130,44 @@ function createCombatV6({
       group:opts.group ?? 0, slot:opts.slot ?? 0, phase:(opts.slot ?? 0) * .36,
       angle:0, dodge:0, evadeCooldown:0, aimX:homeX, aimY:H - 120
     };
-    if (S.level >= 4 && role !== 'bomber') {
-      const cell = {fighter:[0,0], interceptor:[4,0], drone:[5,1], diver:[4,2], shield:[0,3], support:[4,1]};
-      enemy.ch2Cell = cell[role];
-    }
     S.enemies.push(enemy);
     return enemy;
   }
 
-  function addStructure(x, slot) {
-    if (S.turrets.length >= 5) return;
-    const kind = S.level >= 6 ? slot ? 'plasma' : 'missile'
-      : S.level >= 1 && slot ? 'missile' : 'gun';
-    const health = 13 + S.level * 2.5;
-    S.turrets.push({
-      id:'ground-' + ++serial, targetType:'ground', kind, x, y:-47, hp:health, maxHp:health,
-      rx:24, ry:25, shoot:slot ? 1.4 : .85, warn:0, flash:0, dead:false, t:0
-    });
+  function pickShoreSite(side) {
+    const offset = S.bgY ?? S.levelTime * LEVELS[S.level].scroll;
+    const period = terrainPeriod();
+    let match;
+    let distance = Infinity;
+    for (const [x, mapY] of shoreSites[S.level]) {
+      if ((x < W / 2) !== (side < 0)) continue;
+      const wrapped = ((mapY + offset) % period + period) % period;
+      const y = wrapped > period - 140 ? wrapped - period : wrapped;
+      const error = Math.abs(y + 32);
+      if (error >= distance || y > 112) continue;
+      if (S.turrets.some(t => !t.naval && Math.abs(t.x - x) < 18 && Math.abs(t.y - y) < 48)) continue;
+      distance = error;
+      match = {x, y};
+    }
+    return match;
+  }
+
+  function addStructure(role, slot, side) {
+    if (S.turrets.filter(t => !t.dead).length >= 5) return null;
+    const def = surfaceRoles[role];
+    if (!def) return null;
+    const naval = Boolean(def.cruise);
+    const site = naval ? {x:W / 2 + (role === 'gunboat' ? side * 16 : 0), y:role === 'gunboat' ? -130 : -48}
+      : pickShoreSite(side);
+    if (!site) return null;
+    const health = def.hp * (1 + S.level * .13);
+    const surface = {
+      id:'ground-' + ++serial, targetType:'ground', role, naval, kind:def.kind, ...site, homeX:site.x,
+      hp:health, maxHp:health, rx:def.rx, ry:def.ry, shoot:1.1 + slot * .38,
+      warn:0, flash:0, fireFlash:0, dead:false, deathAge:0, t:0, angle:0, targetAngle:Math.PI / 2
+    };
+    S.turrets.push(surface);
+    return surface;
   }
 
   function scheduleWaves() {
@@ -127,10 +187,13 @@ function createCombatV6({
         const role = pattern.roles[i];
         const flank = next[1] === 'pincer' && i < 2;
         const lane = W / 2 + (i - (waveSize - 1) / 2) * (next[1] === 'wedge' ? 92 : 100);
+        const side = i === 0 ? -1 : 1;
+        const surface = surfaceRoles[role];
         const entry = flank ? i ? 'right' : 'left' : 'top';
+        const x = surface ? surface.cruise ? W / 2 : side < 0 ? 65 : W - 65 : lane;
         warningQueue.push({
-          role, entry, x:clamp(lane, 70, W - 70), y:flank ? 160 + 66 * i : -48,
-          slot:i, group, due:now + .9 + (next[1] === 'wedge' ? 0 : i * .13),
+          role, entry, x:clamp(x, 55, W - 55), y:flank ? 160 + 66 * i : -48,
+          slot:i, group, side, due:now + .9 + (next[1] === 'wedge' ? 0 : i * .13),
           elite:S.level >= 4 && (role === 'bomber' || role === 'shield') && group % 2 === 0
         });
       }
@@ -142,8 +205,11 @@ function createCombatV6({
         continue;
       }
       warningQueue.splice(i, 1);
-      if (signal.role === 'ground') addStructure(signal.x, signal.slot);
-      else addEnemy(signal.role, signal);
+      if (!surfaceRoles[signal.role]) addEnemy(signal.role, signal);
+      else if (!addStructure(signal.role, signal.slot, signal.side) && now < (S.levelDuration || 60) - 4) {
+        signal.due = now + .28;
+        warningQueue.push(signal);
+      }
     }
   }
 
@@ -245,7 +311,7 @@ function createCombatV6({
     o.vyNow = approach(o.vyNow, targetVy, response, dt);
     o.x += (oldVx + o.vx) * .5 * dt;
     o.y += o.vyNow * dt;
-    o.angle = approach(o.angle, -Math.atan2(o.vx, Math.max(28, o.vyNow)) * .64, 6, dt);
+    o.angle = rotateToward(o.angle, Math.atan2(-o.vx, o.vyNow), 14 * dt);
   }
 
   function spawnHostile({x, y, angle, speed, size = 10, kind = 'bolt', homing = 0, ttl = 7, color}) {
@@ -257,11 +323,16 @@ function createCombatV6({
   }
 
   function spreadAt(o, p, count, spread, options) {
-    const a = Math.atan2(p.y - o.y, p.x - o.x);
+    const structure = o.targetType === 'ground';
+    const nose = structure ? o.targetAngle : o.angle + Math.PI / 2;
+    const reach = structure ? (o.naval ? o.ry * .48 : 15) : o.ry * .58;
+    const muzzleX = o.x + Math.cos(nose) * reach;
+    const muzzleY = o.y + Math.sin(nose) * reach;
+    const angle = Math.atan2(p.y - muzzleY, p.x - muzzleX);
     let fired = false;
     for (let i = 0; i < count; i++) {
       fired = spawnHostile({
-        x:o.x, y:o.y + 12, angle:a + (i - (count - 1) / 2) * spread, ...options
+        x:muzzleX, y:muzzleY, angle:angle + (i - (count - 1) / 2) * spread, ...options
       }) || fired;
     }
     if (fired && soundWait <= 0) {
@@ -325,26 +396,40 @@ function createCombatV6({
     const scroll = LEVELS[S.level].scroll;
     for (let i = S.turrets.length - 1; i >= 0; i--) {
       const t = S.turrets[i];
+      const def = surfaceRoles[t.role];
       t.t += dt;
       t.flash = Math.max(0, t.flash - dt);
-      t.y += scroll * dt;
-      if (t.y > H + 60 || t.dead && t.flash <= 0) {
+      t.fireFlash = Math.max(0, t.fireFlash - dt);
+      const cruise = t.naval ? def.cruise : 0;
+      if (t.dead) t.deathAge += dt;
+      t.y += (scroll + cruise * (t.dead ? .10 : 1)) * dt;
+      if (t.naval && !t.dead) {
+        const nextX = t.homeX + Math.sin(t.t * .95) * (t.role === 'patrol' ? 20 : 12);
+        t.angle = Math.atan2(t.x - nextX, (scroll + cruise) * dt);
+        t.x = nextX;
+      }
+      if (t.y > H + t.ry || (t.dead && t.deathAge > (t.naval ? 3.4 : 3))) {
         S.turrets.splice(i, 1);
         continue;
       }
-      if (t.dead || t.y < 65 || t.y > p.y - 174 || p.dead) {
+      if (t.dead || t.y < 95 || t.y > p.y - 190 || p.dead) {
         t.warn = 0;
         continue;
       }
+      if (t.shoot > .48) t.targetAngle = rotateToward(t.targetAngle, Math.atan2(p.y - t.y, p.x - t.x), 3.6 * dt);
       t.shoot -= dt;
-      t.warn = t.shoot <= .48 ? .48 - t.shoot : 0;
+      t.warn = t.shoot <= .48 ? clamp(1 - t.shoot / .48, 0, 1) : 0;
       if (t.shoot > 0) continue;
       const missile = t.kind === 'missile';
-      spreadAt(t, p, missile ? 1 : 3, .2, {kind:t.kind === 'gun' ? 'bolt' : t.kind,
-        homing:missile ? .45 : 0, size:missile ? 14 : 11, speed:170 + S.level * 8});
+      const count = t.kind === 'mini' ? 4 : t.role === 'gunboat' ? 3 : missile ? 1 : 2;
+      const aim = {x:t.x + Math.cos(t.targetAngle) * 500, y:t.y + Math.sin(t.targetAngle) * 500};
+      const fired = spreadAt(t, aim, count, t.role === 'gunboat' ? .24 : .13, {
+        kind:missile || t.kind === 'plasma' ? t.kind : 'bolt',
+        homing:missile ? .45 : 0, size:missile ? 14 : 11, speed:170 + S.level * 8
+      });
       t.warn = 0;
-      t.flash = .18;
-      t.shoot = 2.4 + (t.x < W / 2 ? .28 : 0);
+      if (fired) t.fireFlash = .18;
+      t.shoot = fired ? def.rate : .74;
     }
   }
 
@@ -469,11 +554,15 @@ function createCombatV6({
       const i = S.enemies.indexOf(target);
       if (i >= 0) S.enemies.splice(i, 1);
     } else {
-      S.score += 280 + S.level * 40;
+      const surface = surfaceRoles[target.role];
+      S.score += (target.role === 'gunboat' ? 525 : 280) + S.level * 40;
       S.stats.kills++;
-      target.flash = .72;
+      target.warn = 0;
+      target.fireFlash = 0;
+      target.deathAge = 0;
       addImpact(target.x, target.y, '#ffb56f', 53, true, true);
       S.fx.push({type:'boom', x:target.x, y:target.y, life:.48, maxLife:.48, scale:.58});
+      if (surface.reward) spawnDrop('weapon', target.x, target.y);
       sfx('explode');
     }
     return true;
@@ -810,17 +899,7 @@ function createCombatV6({
   }
 
   function drawGround() {
-    for (const t of S.turrets) {
-      drawTurret(t, false);
-      if (t.warn <= 0 || t.dead) continue;
-      ctx.save();
-      ctx.globalAlpha = .43 + t.warn;
-      ctx.strokeStyle = '#ffc776';
-      ctx.lineWidth = 2;
-      ring(t.x, t.y, 42 - t.warn * 30, 32 - t.warn * 17);
-      ctx.stroke();
-      ctx.restore();
-    }
+    for (const t of S.turrets) drawGroundObject(t);
   }
 
   function drawWarning(signal) {

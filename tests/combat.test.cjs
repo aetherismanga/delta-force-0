@@ -19,14 +19,15 @@ function setup({level = 0, ship = 'blue', targets = [], afterPlayerHit, afterBos
   const messages = [];
   const waveTimes = [];
   const drops = [];
+  const terrain = Array.from({length:8}, (_, i) => ({scroll:78 + i * 6}));
   const S = {
-    level, levelTime:0, levelDuration:60, boss:null, bossDeath:null, running:true,
+    level, levelTime:0, levelDuration:60, bgY:0, boss:null, bossDeath:null, running:true,
     special:1, specialCooldown:0, weapon:1, score:0, stats:{shots:0, hits:0, kills:0}, equipment:[],
     player:{x:270, y:835, dead:false, shield:0, cool:0}, enemies:[], turrets:[], pBullets:[], eBullets:[], fx:[]
   };
   const combat = createCombat({
     S, W:540, H:960, ctx:new Proxy({}, {get:() => () => {}}),
-    LEVELS:Array.from({length:8}, (_, i) => ({scroll:78 + i * 6})),
+    LEVELS:terrain,
     ship:() => configs[ship], sfx:type => sounds.push(type),
     showMsg(msg) {
       messages.push(msg);
@@ -38,7 +39,8 @@ function setup({level = 0, ship = 'blue', targets = [], afterPlayerHit, afterBos
       hits.push(point);
       afterPlayerHit?.(S);
     },
-    drawEnemyUnit:() => {}, drawTurret:() => {}, quality:() => 2, reducedEffects:() => false,
+    drawEnemyUnit:() => {}, drawGroundObject:() => {}, quality:() => 2, reducedEffects:() => false,
+    terrainPeriod:() => 828,
     bossTargets:() => targets,
     bossHit(target, damage, x, y, metadata) {
       target.hp -= damage;
@@ -49,12 +51,13 @@ function setup({level = 0, ship = 'blue', targets = [], afterPlayerHit, afterBos
     setSpecialStatus:() => {}
   });
   combat.reset();
-  return {S, combat, hits, sounds, messages, waveTimes, drops};
+  return {S, combat, hits, sounds, messages, waveTimes, drops, scroll:terrain[level].scroll};
 }
 
-function step({S, combat}, seconds) {
+function step({S, combat, scroll}, seconds) {
   for (let i = 0; i < Math.ceil(seconds * 120); i++) {
     S.levelTime += 1 / 120;
+    S.bgY += scroll / 120;
     combat.updateActors(1 / 120);
     combat.updateProjectiles(1 / 120);
   }
@@ -92,6 +95,82 @@ test('support protects nearby escorts and a diver commits to its warned dive', (
   step(game, .8);
   assert.equal(diver.state, 'attack');
   assert(diver.vyNow > 160);
+});
+
+test('flanking aircraft turn their calibrated artwork toward their actual motion on both chapters', () => {
+  for (const level of [0, 4]) {
+    const game = setup({level});
+    const left = game.combat.addEnemy('fighter', {x:155, y:150, entry:'left'});
+    const right = game.combat.addEnemy('fighter', {x:390, y:180, entry:'right'});
+    const support = game.combat.addEnemy('support', {x:270,y:100});
+    step(game, .43);
+    for (const enemy of [left, right, support]) {
+      const magnitude = Math.hypot(enemy.vx, enemy.vyNow);
+      const alignment = (-Math.sin(enemy.angle) * enemy.vx + Math.cos(enemy.angle) * enemy.vyNow) / magnitude;
+      assert(alignment > .95, 'nose heading agrees with motion');
+      assert.equal(enemy.art.facing, level ? 'down' : 'up');
+      assert(enemy.art.rect.every(Number.isInteger));
+      assert(!enemy.ch2Cell, 'no uncalibrated 8 × 4 atlas extraction');
+    }
+    assert(left.angle < -.6 && right.angle > .6, 'the two flanks face inward');
+  }
+});
+
+test('shore batteries keep their terrain anchor while the atlas scrolls and fire after warning', () => {
+  const game = setup({level:2});
+  let battery;
+  for (let i = 0; i < 150 && !battery; i++) {
+    step(game, .1);
+    battery = game.S.turrets.find(t => t.role === 'battery');
+  }
+  assert(battery && !battery.naval);
+  const mapX = battery.x;
+  const mapY = battery.y - game.S.bgY;
+  let warned = false;
+  let fired = false;
+  for (let i = 0; i < 360 && !fired; i++) {
+    step(game, 1 / 60);
+    warned ||= battery.warn > 0;
+    fired ||= battery.fireFlash > 0;
+  }
+  assert.equal(battery.x, mapX);
+  assert(Math.abs(battery.y - game.S.bgY - mapY) < 1e-8);
+  assert(warned && fired);
+  assert(game.S.eBullets.some(b => b.kind === 'bolt'));
+});
+
+test('naval gunboats patrol, take actual damage and leave a visible wreck and weapon drop', () => {
+  const game = setup({level:3, ship:'green'});
+  let boat;
+  for (let i = 0; i < 100 && !boat; i++) {
+    step(game, .1);
+    boat = game.S.turrets.find(t => t.role === 'gunboat' && t.y > 20);
+  }
+  assert(boat && boat.naval);
+  const {x, y} = boat;
+  step(game, 1.45);
+  assert(Math.abs(boat.x - x) > 2);
+  assert(boat.y > y + game.scroll * 1.45);
+  let warned = false;
+  let fired = false;
+  for (let i = 0; i < 360 && !fired; i++) {
+    step(game, 1 / 60);
+    warned ||= boat.warn > 0;
+    fired ||= boat.fireFlash > 0;
+  }
+  assert(warned && fired);
+  assert(game.S.eBullets.some(b => b.kind === 'plasma'));
+  game.S.player.x = boat.x;
+  game.combat.special();
+  step(game, .55);
+  assert(boat.dead && boat.hp <= 0);
+  assert.equal(boat.warn, 0);
+  assert.equal(boat.fireFlash, 0);
+  assert(game.S.turrets.includes(boat));
+  assert(game.drops.some(([kind, x]) => kind === 'weapon' && Math.abs(boat.x - x) < 4));
+  step(game, .9);
+  assert(game.S.turrets.includes(boat), 'the sunken wreck remains briefly in view');
+  assert(game.S.stats.kills >= 1);
 });
 
 test('blue lock-on distributes the salvo across independently targetable modules', () => {

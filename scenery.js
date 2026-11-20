@@ -1,21 +1,23 @@
 'use strict';
 
 const Scenery = (() => {
+  const BLEND_HEIGHT = 132;
   const profiles = [
-    {haze:'#bfece1', water:'#96f1f1', cloud:.31, peaks:[[56,270],[443,610],[61,785]], patrol:true},
-    {haze:'#8edbef', water:'#d1f9fc', cloud:.24, falls:[[70,250],[435,335],[88,493],[442,637],[91,743]], peaks:[[32,499],[477,674]]},
-    {haze:'#c2e3ff', water:'#e7fcff', cloud:.36, snow:true, peaks:[[40,245],[493,592],[90,769]]},
-    {haze:'#93d9ec', water:'#89eaff', cloud:.22, patrol:true, lights:[[471,396],[440,468],[426,553],[479,589]], peaks:[[35,438],[84,779]]},
-    {haze:'#c5e6b5', water:'#86f4ea', cloud:.24, patrol:true, peaks:[[54,213],[459,441],[57,651],[470,792]], lights:[[452,144],[70,318],[478,662]]},
-    {haze:'#a9ecf3', water:'#83ffe1', cloud:.23, patrol:true, peaks:[[57,232],[481,408],[70,660]], lights:[[451,282],[488,574],[87,762]]},
-    {haze:'#d6b0a0', water:'#92e4fa', cloud:.25, ash:true, fires:[[56,209],[468,273],[63,467],[477,609],[53,773],[481,849]]},
-    {haze:'#6279aa', water:'#68abde', cloud:.24, patrol:true, night:true, lights:[[89,152],[474,296],[66,455],[482,590],[69,741],[459,824]]}
+    {water:'#96f1f1', cloud:.31, peaks:[[56,270],[443,610],[61,785]]},
+    {water:'#d1f9fc', cloud:.24, falls:[[70,250],[435,335],[88,493],[442,637],[91,743]], peaks:[[32,499],[477,674]]},
+    {water:'#e7fcff', cloud:.36, snow:true, peaks:[[40,245],[493,592],[90,769]]},
+    {water:'#89eaff', cloud:.22, lights:[[471,396],[440,468],[426,553],[479,589]], peaks:[[35,438],[84,779]]},
+    {water:'#86f4ea', cloud:.24, peaks:[[54,213],[459,441],[57,651],[470,792]], lights:[[452,144],[70,318],[478,662]]},
+    {water:'#83ffe1', cloud:.23, peaks:[[57,232],[481,408],[70,660]], lights:[[451,282],[488,574],[87,762]]},
+    {water:'#92e4fa', cloud:.25, ash:true, fires:[[56,209],[468,273],[63,467],[477,609],[53,773],[481,804]]},
+    {water:'#68abde', cloud:.24, night:true, lights:[[89,152],[474,296],[66,455],[482,590],[69,741],[459,796]]}
   ];
   const sprites = new Map();
   let level = 0;
   let profile = profiles[0];
   let terrainSource;
   let terrainTile;
+  let terrainArt;
   let waterGlints = [];
   let atmosphere = [];
   let clouds = [];
@@ -73,7 +75,7 @@ const Scenery = (() => {
   function reset(nextLevel) {
     level = nextLevel;
     profile = profiles[level];
-    terrainTile = terrainSource = null;
+    terrainTile = terrainArt = terrainSource = null;
     waterGlints = Array.from({length:70}, (_,i) => ({
       x:138+hash(i+level*111)*264,
       y:hash(i+41)*H,
@@ -93,22 +95,36 @@ const Scenery = (() => {
     const original = imgs['bg'+level];
     if (!original || terrainSource === original) return terrainTile;
     terrainSource = original;
-    terrainTile = canvasSprite(W,H);
+    terrainArt = canvasSprite(W,H);
+    terrainArt.getContext('2d').drawImage(original,0,0,W,H);
+    const period = H-BLEND_HEIGHT;
+    const incoming = canvasSprite(W,BLEND_HEIGHT);
+    const feather = incoming.getContext('2d');
+    feather.drawImage(terrainArt,0,0);
+    const fade = feather.createLinearGradient(0,0,0,BLEND_HEIGHT);
+    fade.addColorStop(0,'#0000');
+    fade.addColorStop(.16,'#0000');
+    fade.addColorStop(.84,'#000');
+    fade.addColorStop(1,'#000');
+    feather.globalCompositeOperation = 'destination-in';
+    feather.fillStyle = fade;
+    feather.fillRect(0,0,W,BLEND_HEIGHT);
+
+    // Join the bottom of the preceding upright tile to the top of the next one.
+    terrainTile = canvasSprite(W,period);
     const brush = terrainTile.getContext('2d');
-    brush.drawImage(original,0,0,W,H);
+    brush.drawImage(terrainArt,0,0);
+    brush.drawImage(terrainArt,0,period,W,BLEND_HEIGHT,0,0,W,BLEND_HEIGHT);
+    brush.drawImage(incoming,0,0);
     return terrainTile;
   }
 
   function eachTerrainRow(callback) {
-    const top = Math.floor(S.bgY/H);
-    for (let n=top; n<=top+1; n++) {
-      const flip = n%2 !== 0;
-      const y = S.bgY-n*H;
-      ctx.save();
-      ctx.translate(0,y+(flip ? H : 0));
-      if (flip) ctx.scale(1,-1);
-      callback(flip);
-      ctx.restore();
+    const period = H-BLEND_HEIGHT;
+    const shift = modulo(S.bgY,period);
+    for (let y=shift-period*2; y<H+8; y+=period) {
+      if (y+period < -8) continue;
+      callback(y,period);
     }
   }
 
@@ -138,8 +154,10 @@ const Scenery = (() => {
 
   function paintLand(quality) {
     const t = S.levelTime;
-    eachTerrainRow(flip => {
-      if (quality && profile.peaks && terrainTile) {
+    eachTerrainRow(offset => {
+      ctx.save();
+      ctx.translate(0,offset);
+      if (quality && profile.peaks && terrainArt) {
         for (const [x,y] of profile.peaks) {
           const scale = 1+Math.sin(t*2.4+y)*.026;
           ctx.save();
@@ -148,7 +166,7 @@ const Scenery = (() => {
           ctx.beginPath();
           ctx.ellipse(0,0,24,21,0,0,Math.PI*2);
           ctx.clip();
-          ctx.drawImage(terrainTile,x-27,y-25,54,50,-27,-25,54,50);
+          ctx.drawImage(terrainArt,x-27,y-25,54,50,-27,-25,54,50);
           ctx.restore();
         }
       }
@@ -160,8 +178,8 @@ const Scenery = (() => {
           const stream = (x<200 ? 1 : -1)*(4+i);
           ctx.globalAlpha = Math.sin(age*Math.PI)*.56;
           ctx.beginPath();
-          ctx.moveTo(x+stream*age,y+(flip ? -1 : 1)*22*age);
-          ctx.lineTo(x+stream*age+2,y+(flip ? -1 : 1)*(22*age+6));
+          ctx.moveTo(x+stream*age,y+22*age);
+          ctx.lineTo(x+stream*age+2,y+22*age+6);
           ctx.stroke();
         }
       }
@@ -173,44 +191,8 @@ const Scenery = (() => {
         ctx.globalAlpha = .27+.16*Math.sin(t*3.4+y);
         ctx.drawImage(flare('#ff7136'),x-27,y-25,54,48);
       }
-      ctx.globalAlpha = 1;
-    });
-  }
-
-  function drawPatrol() {
-    if (!profile.patrol) return;
-    const t = S.levelTime;
-    for (let i=0; i<2; i++) {
-      const y = modulo(i*490+S.bgY*.68-t*(15+i*12),H+98)-49;
-      const x = (i ? W*.65 : W*.35)+Math.sin(t*.32+i*2)*32;
-      ctx.save();
-      ctx.translate(x,y);
-      ctx.rotate(Math.cos(t*.32+i*2)*-.12);
-      ctx.fillStyle = '#02263b80';
-      ctx.fillRect(-6,0,18,26);
-      ctx.strokeStyle = profile.water;
-      ctx.globalAlpha = .44;
-      ctx.lineWidth = 1.4;
-      ctx.beginPath();
-      ctx.moveTo(-5,13);
-      ctx.quadraticCurveTo(-12,28,-20,45);
-      ctx.moveTo(5,13);
-      ctx.quadraticCurveTo(12,28,20,45);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = '#234555';
-      ctx.beginPath();
-      ctx.moveTo(0,-17);
-      ctx.lineTo(7,-4);
-      ctx.lineTo(6,13);
-      ctx.lineTo(-6,13);
-      ctx.lineTo(-7,-4);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = profile.night ? '#ffc681' : '#afc5c2';
-      ctx.fillRect(-3,-3,6,9);
       ctx.restore();
-    }
+    });
   }
 
   function drawClouds(shadow,quality) {
@@ -232,12 +214,11 @@ const Scenery = (() => {
     const terrain = getTerrain();
     const quality = visualQuality();
     ctx.save();
-    if (terrain) eachTerrainRow(() => ctx.drawImage(terrain,-8,-.4,W+16,H+.8));
+    if (terrain) eachTerrainRow((y,height) => ctx.drawImage(terrain,-8,y,W+16,height+.65));
     ctx.fillStyle = profile.night ? '#0618312e' : '#102c411f';
     ctx.fillRect(-8,-8,W+16,H+16);
     animateWater(quality);
     paintLand(quality);
-    drawPatrol();
     drawClouds(true,quality);
     ctx.restore();
   }
@@ -261,13 +242,15 @@ const Scenery = (() => {
     if (profile.ash) {
       const texture = vapor(true);
       ctx.globalAlpha = reducedEffects() ? .19 : .3;
-      for (const [x,y] of profile.fires) {
-        const rise = modulo(t*23+y,100);
-        ctx.drawImage(texture,x-35+Math.sin(t*.4+y)*18,modulo(y+S.bgY-rise,H)-36,104,58);
-      }
+      eachTerrainRow(offset => {
+        for (const [x,y] of profile.fires) {
+          const rise = modulo(t*23+y,100);
+          ctx.drawImage(texture,x-35+Math.sin(t*.4+y)*18,offset+y-rise-36,104,58);
+        }
+      });
     }
     ctx.restore();
   }
 
-  return {reset, drawGround, drawAir, flare};
+  return {reset, drawGround, drawAir, flare, terrainPeriod:()=>H-BLEND_HEIGHT};
 })();

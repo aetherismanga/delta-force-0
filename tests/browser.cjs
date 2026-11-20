@@ -193,6 +193,174 @@ async function touch(session, type, x, y) {
   });
 }
 
+async function checkPlayfield(page) {
+  const frame = await page.evaluate(() => {
+    const rect = id => document.getElementById(id).getBoundingClientRect().toJSON();
+    return {
+      canvas: rect('game'), app: rect('app'),
+      controls: ['pauseBtn', 'specialBtn'].map(id => ({ id, ...rect(id) })),
+      width: innerWidth, height: innerHeight, ratio: W / H,
+    };
+  });
+  const within = (inner, outer) =>
+    inner.left >= outer.left - 1 && inner.right <= outer.right + 1 &&
+    inner.top >= outer.top - 1 && inner.bottom <= outer.bottom + 1;
+  assert.ok(within(frame.app, { left: 0, top: 0, right: frame.width, bottom: frame.height }),
+    `Terrain coupé sur ${frame.width}×${frame.height}`);
+  assert.ok(within(frame.canvas, frame.app) && within(frame.app, frame.canvas));
+  assert.ok(Math.abs(frame.canvas.width / frame.canvas.height - frame.ratio) < .01);
+  for (const control of frame.controls) {
+    assert.ok(control.width > 0 && control.height > 0 && within(control, frame.canvas),
+      `Commande ${control.id} coupée sur ${frame.width}×${frame.height} (${JSON.stringify(control)})`);
+  }
+}
+
+async function checkTerrain(page, name) {
+  const samples = await page.evaluate(() => {
+    const start = S.bgY;
+    const original = ctx.drawImage;
+    const asset = imgs['bg' + S.level];
+    if (!asset?.width) throw Error('Illustration du niveau indisponible.');
+    try {
+      const offsets = [H * .18, H * .55, H * 1.08, LEVELS[S.level].scroll * S.levelDuration];
+      return offsets.map(offset => {
+        const rows = [];
+        S.bgY = offset;
+        ctx.drawImage = function (image, ...coordinates) {
+          if (image === asset || (image.width >= W * .85 && image.height >= H * .65)) {
+            const [x, y, w = image.width, h = image.height] = coordinates.length === 8
+              ? coordinates.slice(4)
+              : coordinates;
+            if (w >= W * .8 && h >= H * .3) {
+              const matrix = this.getTransform();
+              rows.push({
+                left: x * matrix.a + matrix.e, right: (x + w) * matrix.a + matrix.e,
+                top: y * matrix.d + matrix.f, bottom: (y + h) * matrix.d + matrix.f,
+              });
+            }
+          }
+          return original.call(this, image, ...coordinates);
+        };
+        Scenery.drawGround();
+        return {
+          offset, rows: rows.length,
+          upright: rows.every(row => row.bottom > row.top),
+          covered: [1, .25 * canvas.height, .50 * canvas.height, .75 * canvas.height, canvas.height - 1]
+            .every(y => rows.some(row => row.top <= y && y <= row.bottom &&
+              row.left <= 1 && row.right >= canvas.width - 1)),
+        };
+      });
+    } finally {
+      ctx.drawImage = original;
+      S.bgY = start;
+      draw();
+    }
+  });
+  for (const sample of samples) {
+    assert.ok(sample.rows > 0 && sample.upright && sample.covered,
+      `Décor inversé ou coupé — ${name} : ${JSON.stringify(sample)}`);
+  }
+}
+
+async function checkPickupFraming(page) {
+  const samples = await page.evaluate(() => {
+    const oldDrops = S.drops;
+    S.drops = [];
+    try {
+      spawnDrop('weapon', 2, 490);
+      spawnDrop('shield', W - 2, 640);
+      updateDrops(1 / 60, S.player);
+      return S.drops.map(drop => {
+        ctx.clearRect(0, 0, W, H);
+        drawDrop(drop);
+        const band = Math.round((drop.y - 60) * canvas.height / H);
+        const height = Math.min(canvas.height - band, Math.round(120 * canvas.height / H));
+        const { data, width } = ctx.getImageData(0, band, canvas.width, height);
+        let first = width;
+        let last = -1;
+        for (let i = 3; i < data.length; i += 4) {
+          if (data[i] < 22) continue;
+          const x = ((i - 3) / 4) % width;
+          first = Math.min(first, x);
+          last = Math.max(last, x);
+        }
+        return {
+          kind: drop.kind, visible: last > first,
+          inside: first > 0 && last < width - 1,
+          displacement: Math.abs((first + last) / 2 * W / width - drop.x),
+        };
+      });
+    } finally {
+      S.drops = oldDrops;
+      draw();
+    }
+  });
+  assert.equal(samples.length, 2);
+  for (const sample of samples) {
+    assert.ok(sample.visible && sample.inside && sample.displacement < 13,
+      `Bonus coupé ou dissocié de sa collision : ${JSON.stringify(sample)}`);
+  }
+}
+
+async function checkEnemyFacing(page) {
+  const samples = await page.evaluate(() => {
+    const oldEnemies = S.enemies;
+    S.enemies = [];
+    const original = ctx.drawImage;
+    try {
+      const roles = ['fighter', 'interceptor', 'bomber', 'drone', 'diver', 'shield', 'support'];
+      return roles.map((role, index) => {
+        const enemy = combat.addEnemy(role, { x: W / 2, y: 340 });
+        const heading = [.34, 0, -.34][index % 3];
+        enemy.angle = heading;
+        enemy.vx = -Math.sin(heading) * 100;
+        enemy.vyNow = Math.cos(heading) * 100;
+        const texture = imgs[enemy.art?.key];
+        let pose;
+        ctx.drawImage = function (image, ...coordinates) {
+          if (image === texture) pose = this.getTransform();
+          return original.call(this, image, ...coordinates);
+        };
+        drawEnemyUnit(enemy);
+        if (!pose) return { role, facing: enemy.art?.facing, drawn: false };
+        const sign = enemy.art.facing === 'up' ? -1 : 1;
+        return {
+          role, facing: enemy.art.facing, drawn: true,
+          alignment: sign * (pose.c * enemy.vx + pose.d * enemy.vyNow) /
+            (100 * Math.hypot(pose.c, pose.d)),
+        };
+      });
+    } finally {
+      ctx.drawImage = original;
+      S.enemies = oldEnemies;
+      draw();
+    }
+  });
+  for (const sample of samples) {
+    assert.ok(sample.drawn && sample.alignment > .95,
+      `L’appareil avance à contre-sens : ${JSON.stringify(sample)}`);
+  }
+}
+
+async function checkMissionResult(page, action) {
+  const previous = page.viewportSize();
+  try {
+    await page.setViewportSize({ width: 320, height: 500 });
+    const button = page.locator(action);
+    await button.scrollIntoViewIfNeeded();
+    const inside = await button.evaluate(element => {
+      const rect = element.getBoundingClientRect();
+      const app = document.getElementById('app').getBoundingClientRect();
+      const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+      return rect.left >= app.left && rect.right <= app.right &&
+        rect.top >= app.top && rect.bottom <= app.bottom && element.contains(hit);
+    });
+    assert.ok(inside, 'Commande des résultats masquée sur un petit écran.');
+  } finally {
+    await page.setViewportSize(previous);
+  }
+}
+
 async function testAndroid(browser, base) {
   const context = await browser.newContext({ ...devices['Pixel 7'], locale: 'fr-FR' });
   try {
@@ -216,7 +384,7 @@ async function testAndroid(browser, base) {
     await page.locator('#cinematicFade').waitFor({ state: 'hidden' });
     const canvas = await page.locator('#game').boundingBox();
     assert.ok(canvas.height > canvas.width, 'Le canevas garde son orientation verticale.');
-    assert.ok(canvas.width <= page.viewportSize().width + 1);
+    await checkPlayfield(page);
     const x = canvas.x + canvas.width * 0.50;
     const y = canvas.y + canvas.height * 0.70;
     const before = await page.evaluate(() => S.player.x);
@@ -228,6 +396,13 @@ async function testAndroid(browser, base) {
     await page.locator('#specialBtn').tap();
     await page.waitForFunction(() => S.special === 0 && S.specialCooldown > 0);
     await capture(page, 'android-play');
+    await checkPickupFraming(page);
+    const phone = page.viewportSize();
+    for (const viewport of [{ width: 320, height: 570 }, { width: 844, height: 390 }]) {
+      await page.setViewportSize(viewport);
+      await checkPlayfield(page);
+    }
+    await page.setViewportSize(phone);
     await context.setOffline(true);
     await boot(page, base);
     assert.deepEqual(errors, []);
@@ -251,9 +426,12 @@ async function testCampaign(browser, base) {
     await page.locator('#shipsBtn').click();
     await page.locator('#shipPlayBtn').click();
     const checked = [];
+    const firstReleaseModules = [5, 6, 6, 6, 5, 6, 7, 7];
     for (let level = 0; level < 8; level++) {
       await page.waitForFunction(index => S.running && S.level === index, level);
       await page.locator('#cinematicFade').waitFor({ state: 'hidden' });
+      await checkTerrain(page, await page.evaluate(() => LEVELS[S.level].name));
+      if (level === 0 || level === 4) await checkEnemyFacing(page);
       const first = await page.evaluate(() => {
         if (S.level === 0) {
           const p = S.player;
@@ -293,7 +471,7 @@ async function testCampaign(browser, base) {
           weaponDisabled: node.shoot === weaponTimer,
         };
       });
-      assert.ok(first.modules >= 4, first.name);
+      assert.ok(first.modules > firstReleaseModules[level], `Composants supplémentaires — ${first.name}`);
       assert.equal(first.damaged, true, `Impact sur le composant — ${first.name}`);
       assert.equal(first.detached, true, `Composant détaché — ${first.name}`);
       assert.equal(first.weaponDisabled, true, `Cycle du composant arrêté — ${first.name}`);
@@ -302,7 +480,8 @@ async function testCampaign(browser, base) {
       const final = await page.evaluate(() => {
         const boss = S.boss;
         const phases = new Set([boss.phase]);
-        for (let shot = 0; shot < 75 && S.boss; shot++) {
+        const shotLimit = boss.nodes.length * 14 + 50;
+        for (let shot = 0; shot < shotLimit && S.boss; shot++) {
           for (let frame = 0; frame < 105 && boss.morph > 0; frame++) {
             S.player.cool = 100;
             update(1 / 60);
@@ -324,19 +503,24 @@ async function testCampaign(browser, base) {
         draw();
         return {
           phases: [...phases], transformed: boss.transformed, mode: wreck.data.wreck.mode,
-          events: wreck.deathEvent, debris: wreck.debris.length, hits: S.stats.hits,
+          wreckDuration: wreck.data.wreck.time, events: wreck.deathEvent,
+          debris: wreck.debris.length, hits: S.stats.hits,
         };
       });
       assert.deepEqual(final.phases, [1, 2, 3, 4], first.name);
       assert.equal(Boolean(final.transformed), level === 7, first.name);
+      assert.ok(final.wreckDuration >= 5, first.name);
       assert.ok(final.events >= 2 && final.debris > 0 && final.hits > 4, JSON.stringify({ name: first.name, ...final }));
       if (level === 7) await capture(page, 'boss-final-destruction');
       await page.evaluate(() => {
-        for (let frame = 0; frame < 460 && S.running; frame++) update(1 / 60);
+        for (let frame = 0; frame < 720 && S.running; frame++) update(1 / 60);
       });
       await visible(page, '#end');
       assert.equal(await page.locator('#resultStats dt').count(), 6);
       assert.equal(await page.evaluate(() => Number(localStorage.df0progress)), level + 1);
+      if (level === 0 || level === 7) {
+        await checkMissionResult(page, level === 7 ? '#menuBtn' : '#nextMissionBtn');
+      }
       checked.push({ ...first, ...final });
       if (level === 7) {
         assert.equal(await page.locator('#endTitle').textContent(), 'Victoire totale');
@@ -362,7 +546,10 @@ async function testCampaign(browser, base) {
 }
 
 async function testTmfEmbed(browser, gameBase, tmfBase) {
-  const context = await browser.newContext({ ...devices['Pixel 7'], locale: 'fr-FR', serviceWorkers: 'block' });
+  // Chromium's mobile emulation applies device scale twice to the cross-origin frame.
+  const context = await browser.newContext({
+    ...devices['Pixel 7'], deviceScaleFactor: 1, locale: 'fr-FR', serviceWorkers: 'block',
+  });
   const gameOrigin = 'https://delta-force-0.vercel.app';
   try {
     if (new URL(gameBase).origin !== gameOrigin) {

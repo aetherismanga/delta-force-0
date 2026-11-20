@@ -122,7 +122,7 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;image-rend
 /* The playfield keeps its original portrait proportions at every viewport. */
 html,body{touch-action:auto;background:#030a12}
 body{display:grid;place-items:center}
-#app{width:min(100vw,56.25dvh);height:min(100dvh,177.778vw);isolation:isolate;outline:1px solid #143346;box-shadow:0 0 90px #112f4b9e}
+#app{width:min(100vw,56.25dvh);height:min(100dvh,177.778vw);isolation:isolate;container-type:inline-size;outline:1px solid #143346;box-shadow:0 0 90px #112f4b9e}
 canvas{image-rendering:auto;touch-action:none}
 .screen{padding:clamp(10px,3vw,20px);touch-action:pan-y;overscroll-behavior:contain}
 .panel{width:100%;max-height:100%;border:1px solid #40647b;border-radius:15px;background:linear-gradient(160deg,#0a1a29f7,#050e19f7);box-shadow:0 20px 65px #000a}
@@ -167,10 +167,29 @@ button[hidden]{display:none}
 #message{top:auto;bottom:12%;max-width:37%;left:3%;transform:none;white-space:normal;text-align:left;border-radius:9px;font-size:clamp(10px,2.75vw,13px);background:#071521e6}
 #introStatus:empty{display:none}
 .introCard{width:100%;height:100%}
-.resultStats{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:18px 0}
-.resultStats div{border:1px solid #35566a;background:#13304b88;border-radius:8px;padding:9px 8px}
-.resultStats dt{font-size:11px;color:#c1dce9}
-.resultStats dd{margin:3px 0 0;color:#ffe1ac;font-size:18px;font-weight:800;font-variant-numeric:tabular-nums}
+#end{align-items:flex-end;justify-content:center;padding:clamp(8px,3%,16px);padding-bottom:max(clamp(8px,3%,16px),env(safe-area-inset-bottom));background:transparent}
+#end::before{background:linear-gradient(180deg,#020d1722 10%,#06122075 48%,#030a13e8 100%);pointer-events:none}
+.debriefPanel{width:min(100%,450px);padding:clamp(10px,4%,20px);border-color:#8caaba9e;background:linear-gradient(155deg,#132631f7,#071420f8 69%);text-align:left}
+.debriefSector{margin:0 0 4px;font-size:clamp(9px,2.7vw,11px);font-weight:750;color:#9bcedd;letter-spacing:.07em;text-transform:uppercase}
+.debriefPanel h2{margin:0;color:#f9dfae;font-size:clamp(19px,5.4vw,29px);line-height:1.1;letter-spacing:-.02em}
+#end[data-outcome="loss"] h2{color:#ffc2a7}
+#endText{margin:7px 0 0;color:#deedf2;font-size:clamp(11px,3.3vw,14px);line-height:1.35}
+#resultAward{margin:7px 0 0;color:#ffbc99;font-size:11px;font-weight:750}
+.resultStats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:13px 0}
+.resultStats div{min-width:0;border:1px solid #45637380;background:#1732459c;border-radius:6px;padding:7px 6px}
+.resultStats dt{font-size:clamp(8px,2.7vw,11px);color:#c2deeb;overflow-wrap:break-word}
+.resultStats dd{margin:3px 0 0;color:#ffe1ac;font-size:clamp(13px,4vw,17px);font-weight:800;font-variant-numeric:tabular-nums;overflow-wrap:break-word}
+.debriefActions{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.debriefActions .btn{margin:0;padding:8px 5px;font-size:clamp(9px,3vw,13px);line-height:1.2;min-height:34px;letter-spacing:.018em}
+#nextMissionBtn{grid-column:1/-1}
+@media(max-height:500px) and (orientation:landscape){#end{align-items:center;padding:5px}.debriefPanel{padding:8px}.debriefSector{font-size:8px}.debriefPanel h2{font-size:17px}#endText{font-size:10px}.resultStats{margin:8px 0}.resultStats dt{font-size:8px}.resultStats dd{font-size:13px}.debriefActions .btn{font-size:9px;padding:4px 3px;min-height:28px}}
 body:has(#app:fullscreen) #app{width:100vw;height:100dvh}
 @media(max-width:340px){.hudBox{padding:5px 4px}.topHud{gap:2px;left:5px;right:5px}}
+@container (max-width:300px){
+  .topHud{display:grid;grid-template-columns:1.2fr .9fr .9fr 1.12fr 25px;gap:3px;left:4px;right:4px}
+  .topHud .hudBox{min-width:0;border-radius:7px;padding:3px 2px;font-size:clamp(7px,3.8cqi,10px);text-align:center}
+  .topHud .hudBox span{display:block;margin-top:1px}
+  .topHud .hudPause{font-size:13px}
+  .bars{top:46px}
+}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important}}

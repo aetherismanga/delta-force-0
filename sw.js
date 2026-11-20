@@ -1,15 +1,16 @@
 'use strict';
 
-const CACHE = 'df0-web-v6.0';
+const CACHE = 'df0-web-v6.1';
+const VERSIONED_SHELL = ['game.css','game.js','scenery.js','combat-v6.js','bosses-v6.js','render.js','manifest.webmanifest'];
 const SHELL = [
-  './index.html','./game.css','./game.js','./scenery.js','./combat-v6.js','./bosses-v6.js',
-  './manifest.webmanifest','./assets/icons/icon-192.png','./assets/icons/icon-512.png',
+  './index.html',...VERSIONED_SHELL.map(name=>`./${name}?v=6.1`),
+  './assets/icons/icon-192.png','./assets/icons/icon-512.png',
 ];
 const FIRST_FLIGHT = [
   '2e9ebfa560b75ac4.png','9b927fa305681cda.png','0a16e72ef9f2ed97.webp','3dbc445a1f3a7fd7.webp',
   '1e7f145fe2b17b49.webp','c6192a52c9fd3c43.png','7c50342e88c0d854.png','2b8d8d38f5ffd922.png',
-  '689f530501af4c52.png','cfabab185a81004c.png','6f35b1001402c826.png','ef416cba27c7c878.png',
-  '8d380893c26df73e.png','fa7227c373ca6daa.png','5d972b013a226068.png',
+  '689f530501af4c52.png','587ddc9c51ac0e38.png','a5d374400a7b97bd.png','3bc4facf1788ccfa.png',
+  '683378032d181255.webp','fa7227c373ca6daa.png','5d972b013a226068.png',
 ].map(name=>'./assets/media/asset-'+name);
 
 self.addEventListener('install', event => {
@@ -53,7 +54,7 @@ self.addEventListener('fetch', event => {
     return;
   }
   const name = url.pathname.slice(url.pathname.lastIndexOf('/')+1);
-  if (SHELL.includes('./'+name) || /\/assets\/(?:media|icons)\//.test(url.pathname)) {
+  if (VERSIONED_SHELL.includes(name) || /\/assets\/(?:media|icons)\//.test(url.pathname)) {
     event.respondWith(gameResource(request));
   }
 });
