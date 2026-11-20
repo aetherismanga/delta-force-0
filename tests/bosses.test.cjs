@@ -142,6 +142,28 @@ test('shield projectors and plating protect the core until the named parts fail'
   assert.equal(f.state.bossDeath, b);
 });
 
+test('upgraded projectiles still increase pressure without cutting special or localized damage', () => {
+  function loss(level, amount, tier, kind, core = true) {
+    const f = fixture(level);
+    f.boss.spawn();
+    f.step(2.5);
+    const b = f.state.boss;
+    const target = core ? b.core : b.nodes.find(n => n.definition.weapon);
+    const hp = target.hp;
+    f.hit(target, amount, { tier, kind, ship: 'green' });
+    return hp - target.hp;
+  }
+
+  for (const level of [0, 7]) {
+    const stockViper = loss(level, 4.68, 1, 'primary');
+    const upgradedViper = loss(level, 6.83, 5, 'primary');
+    assert.ok(upgradedViper / .86 > stockViper, 'upgraded center cannon retains greater sustained damage');
+    assert.ok(loss(level, 10, 5, 'primary') < loss(level, 10, 1, 'primary'));
+    assert.equal(loss(level, 10, 5, 'primary', false), loss(level, 10, 1, 'primary', false));
+    assert.equal(loss(level, 52, 5, 'greenLance'), loss(level, 52, 1, 'greenLance'));
+  }
+});
+
 test('the Titan hangar cuts off escorts and Hydra rotors degrade handling', () => {
   const titan = fixture(3);
   titan.boss.spawn();

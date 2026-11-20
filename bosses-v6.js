@@ -7,7 +7,7 @@ const BossV6 = (() => {
   const ENCOUNTERS = [
     {
       intro: 'Vise le radar avant de remonter jusqu’au poste de commandement.',
-      name: 'Forteresse tropicale', width: 270, height: 337, anchor: 270, hp: 710,
+      name: 'Forteresse tropicale', width: 270, height: 337, anchor: 270, hp: 725,
       hue: '#ffcc70', phase: [.76, .51, .26], stages: ['Défenses extérieures brisées', 'Poste de commandement isolé', 'Poste de commandement exposé'],
       core: [.50, .49, .117, .125], motion: 'fortress', support: ['fighter', 'fighter'],
       parts: [
@@ -24,7 +24,7 @@ const BossV6 = (() => {
     },
     {
       intro: 'Les relais latéraux protègent le pont. Les soutes alimentent les missiles.',
-      name: 'Cuirassé fluvial', width: 156, height: 392, anchor: 292, hp: 755,
+      name: 'Cuirassé fluvial', width: 156, height: 392, anchor: 292, hp: 775,
       hue: '#8be5ff', phase: [.77, .49, .24], stages: ['Bordés perforés', 'Salle des machines en feu', 'Dernière batterie du cuirassé'],
       core: [.50, .57, .225, .161], motion: 'river', support: ['interceptor'],
       parts: [
@@ -133,7 +133,7 @@ const BossV6 = (() => {
     },
     {
       intro: 'Les conducteurs latéraux alimentent la Forme Zéro. Vise-les avant sa mutation.',
-      name: 'Nightfall Ω', width: 270, height: 421, anchor: 305, hp: 1470,
+      name: 'Nightfall Ω', width: 270, height: 421, anchor: 305, hp: 1555,
       hue: '#b2a6ff', phase: [.77, .52, .24], stages: ['Collecteurs Ω instables', 'Forme Zéro détectée', 'Ruine du noyau Ω'],
       core: [.50, .49, .137, .149], motion: 'nightfall', support: ['interceptor', 'diver'],
       parts: [
@@ -323,7 +323,10 @@ const BossV6 = (() => {
       const defense = shields ? (pierce ? .52 : .24) : armor ? (pierce ? .90 : .65) : 1;
       const weakSpot = 1 + (b.phase - 1) * .10;
       const hullFloor = shields || armor ? b.maxHp * .16 : 0;
-      b.hp = Math.max(hullFloor, b.hp - damage * 1.66 * defense * weakSpot);
+      // Keep high-tier volleys effective on individual modules and rein in sustained fire on the hull.
+      const upgrade = metadata.kind === 'primary' && Number.isFinite(metadata.tier) ? clamp((metadata.tier - 1) / 4, 0, 1) : 0;
+      const hullResistance = 1 - upgrade * (b.level === 7 ? .34 : .28);
+      b.hp = Math.max(hullFloor, b.hp - damage * 1.66 * defense * weakSpot * hullResistance);
       b.core.hp = b.hp;
       impact(b, x, y, shields ? '#8be7ff' : b.data.hue, shields ? .55 : .83);
       b.flash = shields ? .11 : .15;
