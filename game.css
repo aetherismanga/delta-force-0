@@ -127,7 +127,7 @@ canvas{image-rendering:auto;touch-action:none}
 .screen{padding:clamp(10px,3vw,20px);touch-action:pan-y;overscroll-behavior:contain}
 .panel{width:100%;max-height:100%;border:1px solid #40647b;border-radius:15px;background:linear-gradient(160deg,#0a1a29f7,#050e19f7);box-shadow:0 20px 65px #000a}
 #start{justify-content:center;align-items:flex-end;background-repeat:no-repeat}
-#start::before{background:linear-gradient(180deg,#030a1220 15%,#01060d50 47%,#01060de5 100%)}
+#start::before{background:linear-gradient(180deg,#030a1210 32%,#06111e 44%,#030a12 100%)}
 #start .title-panel{margin-bottom:clamp(6px,4vh,32px);padding:clamp(15px,4vw,26px)}
 .logo{max-width:370px;max-height:24dvh;object-fit:contain}
 .title-panel .subtitle{color:#b2e5fa;font-size:clamp(10px,1.6vh,14px);margin:10px 0 17px}
