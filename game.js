@@ -18,10 +18,14 @@ const LEVELS=[
    bossName:front.boss.name, scroll:front.scroll}))
 ];
 const SHIPS=[
- {id:'blue',name:'Aigle bleu',meta:'Équilibré • précis • maniable',hp:3,speed:365,fire:.145,damageMul:1.00,damageTaken:1.00,hitbox:13,specialName:'MISSILES LOCK-ON',color:'#55cfff',frames:{idle:[12,25,245,300],left:[275,55,235,260],right:[520,55,225,260],boost:[730,20,255,330]}},
- {id:'green',name:'Viper vert',meta:'Blindé • puissant • plus lent',hp:5,speed:305,fire:.18,damageMul:1.38,damageTaken:.68,hitbox:16,specialName:'CANON PERFORANT',color:'#67ef72',frames:{idle:[15,355,245,285],left:[280,365,230,255],right:[520,365,230,255],boost:[725,340,260,325]}},
- {id:'red',name:'Talon rouge',meta:'Ultra rapide • fragile • cadence forte',hp:2,speed:425,fire:.098,damageMul:.82,damageTaken:1.22,hitbox:11,specialName:'ESSAIM ROUGE',color:'#ff6666',frames:{idle:[15,680,245,300],left:[280,700,230,250],right:[515,700,230,250],boost:[735,675,250,320]}},
- {id:'gold',name:'As doré',meta:'Puissant • couverture large • moins agile',hp:3,speed:345,fire:.155,damageMul:1.18,damageTaken:.90,hitbox:17,specialName:'RAYON SOLAIRE',color:'#ffd452',frames:{idle:[20,995,240,315],left:[280,1010,230,260],right:[515,1010,230,260],boost:[730,970,265,360]}}
+ {id:'blue',portrait:'uiShipBlue',name:'Aigle bleu',meta:'Équilibré • précis • maniable',hp:3,speed:365,fire:.145,damageMul:1.00,damageTaken:1.00,hitbox:13,specialName:'MISSILES LOCK-ON',color:'#55cfff',frames:{idle:[12,25,245,300],left:[275,55,235,260],right:[520,55,225,260],boost:[730,20,255,330]}},
+ {id:'green',portrait:'uiShipGreen',name:'Viper vert',meta:'Blindé • puissant • plus lent',hp:5,speed:305,fire:.18,damageMul:1.38,damageTaken:.68,hitbox:16,specialName:'CANON PERFORANT',color:'#67ef72',frames:{idle:[15,355,245,285],left:[280,365,230,255],right:[520,365,230,255],boost:[725,340,260,325]}},
+ {id:'red',portrait:'uiShipRed',name:'Talon rouge',meta:'Ultra rapide • fragile • cadence forte',hp:2,speed:425,fire:.098,damageMul:.82,damageTaken:1.22,hitbox:11,specialName:'ESSAIM ROUGE',color:'#ff6666',frames:{idle:[15,680,245,300],left:[280,700,230,250],right:[515,700,230,250],boost:[735,675,250,320]}},
+ {id:'gold',portrait:'uiShipGold',name:'As doré',meta:'Puissant • couverture large • moins agile',hp:3,speed:345,fire:.155,damageMul:1.18,damageTaken:.90,hitbox:17,specialName:'RAYON SOLAIRE',color:'#ffd452',frames:{idle:[20,995,240,315],left:[280,1010,230,260],right:[515,1010,230,260],boost:[730,970,265,360]}},
+ {id:'libellule',name:'Libellule',portrait:'hangarLibellule',unlockAt:7,meta:'Éclaireur • arcs électriques',hp:2,speed:412,fire:.115,damageMul:.95,damageTaken:1.08,hitbox:10,specialName:'CHAÎNE IONIQUE',color:'#bf91ff',
+  rotorcraft:{width:78,height:98,rotors:[{y:.42,radius:47,blades:4,rate:18},{y:.83,radius:11,blades:2,rate:-27}]}},
+ {id:'grizzly',name:'Grizzly',portrait:'hangarGrizzly',unlockAt:11,meta:'Double rotor • obus explosifs',hp:6,speed:284,fire:.235,damageMul:1.40,damageTaken:.74,hitbox:17,specialName:'BARRAGE SISMIQUE',color:'#ffaa57',
+  rotorcraft:{width:86,height:108,rotors:[{y:.28,radius:42,blades:3,rate:15},{y:.72,radius:42,blades:3,rate:-15}]}}
 ];
 const ENEMIES={
  green:{hp:2,score:100,speed:90,size:48,frames:{left:[20,135,150,170],idle:[170,130,220,180],right:[385,135,165,170]}},
@@ -80,6 +84,10 @@ sources['uiShipBlue']='assets/media/asset-2ea5b141241a59e0.png';
 sources['uiShipGreen']='assets/media/asset-509f2275dbd3ad7e.png';
 sources['uiShipRed']='assets/media/asset-bce5dd32ed50ddc8.png';
 sources['uiShipGold']='assets/media/asset-5bb8923a0c46cf92.png';
+sources.hangarLibellule='assets/aircraft/hangar-libellule.webp';
+sources.hangarGrizzly='assets/aircraft/hangar-grizzly.webp';
+sources.plane_libellule_0='assets/aircraft/libellule.webp';
+sources.plane_grizzly_0='assets/aircraft/grizzly.webp';
 sources['carrierBodyV41']='assets/media/asset-d1d6747a40955000.png';
 sources['carrierTurretCannon']='assets/media/asset-ddb26456bb1d8fef.png';
 sources['carrierTurretCannonDmg']='assets/media/asset-ba39883c9cfde4d1.png';
@@ -183,18 +191,19 @@ const SHIP_DETAILS={
  blue:{role:'Intercepteur polyvalent',desc:'Pilotage équilibré et tirs concentrés pour viser entre les défenses.',tags:['Précision','Maniabilité'],strong:'Petit gabarit et bonne vitesse.',weak:'Armure moyenne.',special:'Huit missiles autoguidés se répartissent entre les ennemis et les modules du boss.'},
  green:{role:'Chasseur blindé',desc:'Appareil lourd conçu pour tenir sa position et percer les défenses.',tags:['Blindage','Puissance'],strong:'Cinq points d’énergie et impact élevé.',weak:'Déplacement lent et large gabarit.',special:'Après une charge visible, le canon traverse les cibles alignées et fragilise les blindages.'},
  red:{role:'Chasseur offensif',desc:'Un appareil léger qui alterne déplacements rapides et rafales en diagonale.',tags:['Vitesse','Cadence'],strong:'Vitesse et cadence les plus élevées.',weak:'Deux points d’énergie et projectiles légers.',special:'Quatre salves de missiles autoguidés partent des flancs et poursuivent plusieurs cibles.'},
- gold:{role:'Prototype d’élite',desc:'Une couverture croissante et un rayon à balayer sur les points faibles.',tags:['Puissance','Couverture'],strong:'Tir large et résistance accrue.',weak:'Plus grande surface exposée.',special:'Après la charge, le rayon suit les déplacements latéraux du vaisseau et endommage en continu les cibles traversées.'}
+ gold:{role:'Prototype d’élite',desc:'Une couverture croissante et un rayon à balayer sur les points faibles.',tags:['Puissance','Couverture'],strong:'Tir large et résistance accrue.',weak:'Plus grande surface exposée.',special:'Après la charge, le rayon suit les déplacements latéraux du vaisseau et endommage en continu les cibles traversées.'},
+ libellule:{role:'Hélicoptère de reconnaissance',desc:'Ses deux émetteurs alternent leurs impulsions à gauche et à droite du cockpit.',tags:['Agilité','Électricité'],strong:'Silhouette étroite et cadence rapide.',weak:'Deux points d’énergie. Sa chaîne a besoin de cibles rapprochées.',special:'Une décharge bondit entre quatre cibles au maximum. Rapprochez-vous du groupe pour amorcer la chaîne.'},
+ grizzly:{role:'Hélicoptère lourd à double rotor',desc:'Ses obus éclatent au contact et touchent les unités groupées.',tags:['Blindage','Explosion'],strong:'Six points d’énergie et des impacts de zone.',weak:'Vol lent et cadence espacée.',special:'Trois repères s’allument devant le nez. Des ondes de choc frappent ces positions l’une après l’autre.'}
 };
 const TURRET_ROWS={gun:0,mini:1,missile:2,plasma:3};
 function updateShipInfo(){
  const box=$('shipInfo');if(!box)return;
  const sh=ship(),d=SHIP_DETAILS[sh.id]||SHIP_DETAILS.blue;
- const key={blue:'uiShipBlue',green:'uiShipGreen',red:'uiShipRed',gold:'uiShipGold'}[sh.id];
  const atk=Math.round(Math.min(100,55*sh.damageMul+(1/sh.fire-6)*5));
  const spd=Math.round(Math.min(100,sh.speed/4.5));
  const def=Math.round(Math.min(100,(sh.hp*15)+(1-sh.damageTaken)*45));
- const spec={blue:78,green:86,red:82,gold:94}[sh.id]||80;
- box.innerHTML=`<div class="shipHero"><img class="shipHeroArt" src="${sources[key]}" alt="${sh.name}"><div class="shipHeroText"><div class="shipInfoTitle">${sh.name}</div><div class="shipInfoRole">${d.role}</div><div class="shipInfoDesc">${d.desc}</div><div class="shipPills">${d.tags.map(x=>`<span class="shipPill">${x}</span>`).join('')}</div></div></div><div class="shipBars"><div class="shipBar"><span>Vitesse</span><div class="shipBarTrack"><div class="shipBarFill" style="width:${spd}%"></div></div><b>${sh.speed}</b></div><div class="shipBar"><span>Attaque</span><div class="shipBarTrack"><div class="shipBarFill" style="width:${atk}%"></div></div><b>${Math.round(sh.damageMul*100)}%</b></div><div class="shipBar"><span>Défense</span><div class="shipBarTrack"><div class="shipBarFill" style="width:${def}%"></div></div><b>${sh.hp}♥</b></div><div class="shipBar"><span>Spécial</span><div class="shipBarTrack"><div class="shipBarFill" style="width:${spec}%"></div></div><b>${spec}</b></div></div><div class="shipTraits"><div class="shipTrait good"><strong>POINTS FORTS</strong>${d.strong}</div><div class="shipTrait bad"><strong>FAIBLESSES</strong>${d.weak}</div></div><div class="shipSpecial"><strong>SPÉCIAL — ${sh.specialName}</strong><br>${d.special}</div><ul class="shipUpgrades">${Object.entries(FlightArms.mounts[sh.id]).map(([key,m])=>`<li>${key.toUpperCase()} · ${m.name}</li>`).join('')}</ul>`;
+ const spec={blue:78,green:86,red:82,gold:94,libellule:85,grizzly:92}[sh.id];
+ box.innerHTML=`<div class="shipHero"><img class="shipHeroArt" src="${sources[sh.portrait]}" alt="${sh.name}"><div class="shipHeroText"><div class="shipInfoTitle">${sh.name}</div><div class="shipInfoRole">${d.role}</div><div class="shipInfoDesc">${d.desc}</div><div class="shipPills">${d.tags.map(x=>`<span class="shipPill">${x}</span>`).join('')}</div></div></div><div class="shipBars"><div class="shipBar"><span>Vitesse</span><div class="shipBarTrack"><div class="shipBarFill" style="width:${spd}%"></div></div><b>${sh.speed}</b></div><div class="shipBar"><span>Attaque</span><div class="shipBarTrack"><div class="shipBarFill" style="width:${atk}%"></div></div><b>${Math.round(sh.damageMul*100)}%</b></div><div class="shipBar"><span>Défense</span><div class="shipBarTrack"><div class="shipBarFill" style="width:${def}%"></div></div><b>${sh.hp}♥</b></div><div class="shipBar"><span>Spécial</span><div class="shipBarTrack"><div class="shipBarFill" style="width:${spec}%"></div></div><b>${spec}</b></div></div><div class="shipTraits"><div class="shipTrait good"><strong>POINTS FORTS</strong>${d.strong}</div><div class="shipTrait bad"><strong>FAIBLESSES</strong>${d.weak}</div></div><div class="shipSpecial"><strong>SPÉCIAL — ${sh.specialName}</strong><br>${d.special}</div><ul class="shipUpgrades">${Object.entries(FlightArms.mounts[sh.id]).map(([key,m])=>`<li>${key.toUpperCase()} · ${m.name}</li>`).join('')}</ul>`;
 }
 
 
@@ -208,16 +217,51 @@ function grantStarReward(){if(S.starsRewardGranted)return;S.starsRewardGranted=t
 function startCongratulations(){S.rewardCelebration={t:0};S.enemies.length=0;S.eBullets.length=0;S.pBullets.length=0;stopMusic()}
 function drawImageCentered(im,x,y,maxW,maxH,rot=0,alpha=1){if(!im)return;const sc=Math.min(maxW/im.width,maxH/im.height),w=im.width*sc,h=im.height*sc;ctx.save();ctx.globalAlpha=alpha;ctx.translate(x,y);if(rot)ctx.rotate(rot);ctx.drawImage(im,-w/2,-h/2,w,h);ctx.restore()}
 
-function initShips(){
- const g=$('shipGrid');g.innerHTML='';
- const imgKey={blue:'uiShipBlue',green:'uiShipGreen',red:'uiShipRed',gold:'uiShipGold'};
- for(const sh of SHIPS){
-   const b=document.createElement('button');b.className='shipCard';b.dataset.id=sh.id;
-   b.innerHTML=`<img class="shipPreviewImg" src="${sources[imgKey[sh.id]]}" alt="${sh.name}"><div class="shipName">${sh.name}</div><div class="shipMeta">${sh.meta}</div>`;
-    b.onclick=()=>{S.selectedShip=sh.id;writeSetting('df0ship',sh.id);updateShips();sfx('pickup')};g.appendChild(b)
- }
- updateShips();updateShipInfo();
+function shipAvailable(pilot, progress) {
+  return (pilot.unlockAt || 0) <= progress;
+}
 
+function resolveShipSelection(progress = getProgress()) {
+  const preferred = SHIPS.find(pilot => pilot.id === preferredShip);
+  S.selectedShip = preferred && shipAvailable(preferred,progress) ? preferred.id : SHIPS[0].id;
+  if (preferred && preferred.id !== S.selectedShip) preferredShip = S.selectedShip;
+}
+
+function readPreferredShip() {
+  if (!embedHost) return readSetting('df0ship');
+  const scoped = embedProfile && readSetting('df0ship:tmf:'+embedProfile);
+  if (scoped) return scoped;
+  const legacy = readSetting('df0ship');
+  return SHIPS.find(pilot => !pilot.unlockAt && pilot.id === legacy)?.id;
+}
+
+function selectShip(pilot) {
+  if (!shipAvailable(pilot,getProgress())) return false;
+  preferredShip = S.selectedShip = pilot.id;
+  if (embedProfile) writeSetting('df0ship:tmf:'+embedProfile,pilot.id);
+  else if (!embedHost) writeSetting('df0ship',pilot.id);
+  sfx('pickup');
+  return true;
+}
+
+function initShips() {
+  const grid = $('shipGrid'), progress = getProgress();
+  resolveShipSelection(progress);
+  grid.replaceChildren();
+  for (const pilot of SHIPS) {
+    if (!shipAvailable(pilot,progress)) continue;
+    const button = document.createElement('button');
+    button.className = 'shipCard';
+    button.dataset.id = pilot.id;
+    button.innerHTML = `<img class="shipPreviewImg" src="${sources[pilot.portrait]}" alt=""><div class="shipName">${pilot.name}</div><div class="shipMeta">${pilot.meta}</div>`;
+    button.onclick = () => { if (selectShip(pilot)) updateShips(); };
+    grid.appendChild(button);
+  }
+  const resume = $('shipContinueBtn');
+  resume.hidden = progress <= 0 || progress >= LEVELS.length;
+  if (!resume.hidden) resume.textContent = 'Décoller en '+stageLabel(progress)+' · '+LEVELS[progress].name;
+  $('shipPlayBtn').textContent = progress ? 'Rejouer le niveau 1.1' : 'Décoller en 1.1';
+  updateShips();
 }
 
 function updateShips(){document.querySelectorAll('.shipCard').forEach(b=>{const active=b.dataset.id===S.selectedShip;b.classList.toggle('active',active);b.setAttribute('aria-pressed',active)});updateShipInfo()}
@@ -255,7 +299,7 @@ const S = {
   drops: [], fx: [], boss: null, bossDeath: null, rewardCelebration: null,
   starsCollected: 0, special: 1, specialCooldown: 0, touch: null, bank: 0,
   bgY: 0, shake: 0, hitStop: 0, stats: newStats(),
-  selectedShip: readSetting('df0ship') || 'blue', invincible: readSetting('df0invincible') === '1',
+  selectedShip: 'blue', invincible: readSetting('df0invincible') === '1',
   sound: readSetting('df0sound') !== '0', music: readSetting('df0music') !== '0',
   soundVol: readVolume('df0soundvol', .75), musicVol: readVolume('df0musicvol', .42),
 };
@@ -456,6 +500,7 @@ function blastNoise(duration, cutoff, gain, delay = 0, filter = 'lowpass') {
 }
 
 const blastLayers = {
+  seismicImpact:[[.28,2000,.36]],
   explode:[[.32,2950,.62],[.12,3700,.20,.035,'bandpass']],
   armorBreak:[[.22,4900,.46,0,'bandpass'],[.17,3200,.24,.10,'bandpass']],
   hullBreak:[[.67,3300,.60],[.33,4300,.42,.24,'bandpass'],[.42,1700,.45,.48]],
@@ -465,6 +510,12 @@ const voices = {
   shot: [[550,.038,'triangle',.035,230]],
   shotblue:[[780,.055,'sine',.052,360]], shotgreen:[[164,.11,'triangle',.12,61]],
   shotred:[[470,.045,'square',.019,180],[360,.035,'triangle',.032,140,.026]],
+  shotlibellule:[[980,.055,'sine',.059,505],[1450,.037,'triangle',.022,635]],
+  shotgrizzly:[[119,.13,'triangle',.15,43],[260,.055,'sawtooth',.027,95]],
+  ionCharge:[[510,.14,'sine',.10,1180]], ionArc:[[1180,.13,'triangle',.08,295],[1720,.08,'sine',.038,600,.045]],
+  seismicMark:[[240,.20,'triangle',.10,540],[490,.08,'sine',.045,720,.13]],
+  seismicImpact:[[118,.32,'triangle',.18,36],[220,.17,'sawtooth',.035,62]],
+  rotorStart:[[64,.28,'triangle',.05,92],[70,.22,'sine',.075,98,.11]],
   shotgold:[[690,.085,'sine',.062,422],[1035,.06,'sine',.025,631]],
   hullBreak:[[136,.62,'sawtooth',.11,33],[73,.86,'triangle',.18,25],[510,.30,'triangle',.067,88,.19]],
   reactorBreak:[[108,.92,'sine',.33,28],[205,.75,'triangle',.15,45],[830,.42,'sawtooth',.055,90,.17]],
@@ -556,13 +607,14 @@ function setupLevel(first = false) {
   missionTrack = LEVELS[S.level].music;
   playMusic(missionTrack, .12);
   fadeMusic(.12, .75, 800);
-  sfx('engine');
+  sfx(pilot.rotorcraft ? 'rotorStart' : 'engine');
   banner(`NIVEAU ${stageLabel(S.level)} — ${LEVELS[S.level].name}`, 2);
   if (!first) showMsg('Armement de base · spécial prêt', 1.4);
   refreshHud();
 }
 
 function startGame(fromLevel = 0, continueCampaign = false) {
+  resolveShipSelection();
   audio();
   nextMission = null;
   S.level = clampV(Math.trunc(fromLevel)||0, 0, LEVELS.length-1);
@@ -756,7 +808,7 @@ function update(dt) {
     S.respawnTimer -= dt;
     if (S.respawnTimer <= 0) {
       Object.assign(p,{dead:false,hp:p.maxHp,inv:2.5,x:W/2,y:H-125});
-      sfx('engine');
+      sfx(ship().rotorcraft ? 'rotorStart' : 'engine');
     }
   }
   if (S.specialCooldown > 0) {
@@ -797,22 +849,26 @@ function drawPlayerCraft() {
   const stage = S.equipment.length;
   const {rotation,hover} = FlightArms.pose(S.bank,S.levelTime);
   const opacity = p.inv > 0 && !reducedEffects() ? .64 + .36*Math.abs(Math.sin(S.levelTime*20)) : 1;
-  const flame = Scenery.flare(pilot.color);
-  const boost = Math.sin(S.levelTime*39)*3 + Math.min(20,Math.abs(p.vy||0)*.04);
   ctx.save();
   ctx.translate(p.x,p.y);
   ctx.rotate(rotation);
   ctx.globalAlpha = opacity;
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.drawImage(flame,-23,17,46,52+boost);
-  ctx.drawImage(flame,-8,23,16,37+boost);
-  ctx.globalCompositeOperation = 'source-over';
-  const image = imgs[`plane_${pilot.id}_${stage}`];
-  if (image) drawImageCentered(image,0,hover,78+stage*4,94+stage*5);
-  else drawSprite(imgs.players,pilot.frames.boost,0,hover,72,94);
+  if (!pilot.rotorcraft) {
+    const flame = Scenery.flare(pilot.color);
+    const boost = Math.sin(S.levelTime*39)*3 + Math.min(20,Math.abs(p.vy||0)*.04);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.drawImage(flame,-23,17,46,52+boost);
+    ctx.drawImage(flame,-8,23,16,37+boost);
+    ctx.globalCompositeOperation = 'source-over';
+    const image = imgs[`plane_${pilot.id}_${stage}`];
+    if (image) drawImageCentered(image,0,hover,78+stage*4,94+stage*5);
+    else drawSprite(imgs.players,pilot.frames.boost,0,hover,72,94);
+  }
   ctx.save();
   ctx.translate(0,hover);
+  if (pilot.rotorcraft) drawHelicopterHull(pilot,p);
   drawMountedWeapons(pilot,p);
+  if (pilot.rotorcraft) drawRotors(pilot);
   ctx.restore();
   if (p.shield > 0) {
     ctx.strokeStyle = p.shield < .8 ? '#77e9ff88' : '#8befff';
@@ -919,7 +975,7 @@ function hideAlert() {
   $('message').classList.remove('show');
 }
 
-function finish(win, text, stagePassed = false) {
+function finish(win, text, stagePassed = false, unlocked = []) {
   S.running = false;
   S.paused = false;
   releaseInput();
@@ -931,6 +987,19 @@ function finish(win, text, stagePassed = false) {
   $('endTitle').textContent = win ? 'Victoire totale' : stagePassed ? 'Mission accomplie' : 'Mission échouée';
   $('endText').textContent = text;
   $('resultAward').hidden = !S.starsRewardGranted;
+  const rewards = $('hangarRewards');
+  rewards.replaceChildren();
+  for (const pilot of unlocked) {
+    const button = document.createElement('button');
+    button.className = 'hangarReward';
+    button.innerHTML = `<img src="${sources[pilot.portrait]}" alt=""><span><small>Hélicoptère débloqué</small><strong>${pilot.name}</strong><span>${nextMission === null ? 'Ouvrir le hangar' : 'Piloter en '+stageLabel(nextMission)} →</span></span>`;
+    button.onclick = () => {
+      if (!selectShip(pilot)) return;
+      if (nextMission === null) { initShips(); setScreen('ships'); }
+      else continueToNextMission();
+    };
+    rewards.appendChild(button);
+  }
   $('nextMissionBtn').hidden = nextMission === null;
   $('retryBtn').classList.toggle('primary',nextMission === null);
   $('retryBtn').textContent = stagePassed || win ? 'Rejouer la mission' : 'Recommencer';
@@ -959,15 +1028,17 @@ function finish(win, text, stagePassed = false) {
 
 function nextLevel() {
   if (!S.running) return;
-  markLevelComplete(S.level);
+  const before = getProgress();
+  const after = markLevelComplete(S.level);
+  const unlocked = SHIPS.filter(pilot => pilot.unlockAt > before && pilot.unlockAt <= after);
   S.stats.boss = true;
   if (S.level === LEVELS.length-1) {
     nextMission = null;
-    finish(true,'Les seize zones sont sécurisées.');
+    finish(true,'Les seize zones sont sécurisées.',true,unlocked);
   } else {
     nextMission = S.level+1;
     loadArt(['bg'+nextMission]);
-    finish(false,`${S.score.toLocaleString('fr-FR')} points cumulés`,true);
+    finish(false,`${S.score.toLocaleString('fr-FR')} points cumulés`,true,unlocked);
   }
 }
 
@@ -987,6 +1058,8 @@ const embedHost = (() => {
   } catch { return null; }
 })();
 let embedProgress = 0;
+let embedProfile = null;
+let preferredShip = readPreferredShip();
 
 function sendToHost(type, data={}) {
   if (embedHost) parent.postMessage({channel:'tmf-games',type,...data},embedHost);
@@ -996,7 +1069,14 @@ window.addEventListener('message', event => {
   if (!embedHost || event.source !== parent || event.origin !== embedHost || event.data?.channel !== 'tmf-games') return;
   const {type, progress} = event.data;
   if (type === 'restore' && Number.isInteger(progress)) {
+    const profile = event.data.profileId;
+    if (typeof profile === 'string' && profile && profile !== embedProfile) {
+      embedProfile = profile;
+      embedProgress = 0;
+      preferredShip = readPreferredShip();
+    }
     embedProgress = Math.max(embedProgress,clampV(progress,0,LEVELS.length));
+    if (!S.running) initShips();
     if (S.scene === 'progress') renderProgress(mapPage);
   } else if (type === 'save') sendToHost('progress',{progress:embedProgress});
   else if (type === 'pause') pauseGame();
@@ -1004,6 +1084,7 @@ window.addEventListener('message', event => {
 
 function launchLevelReliable(level = 0, continueCampaign = false) {
   if (level < 0 || level >= LEVELS.length) return;
+  resolveShipSelection();
   const title = `Mission ${stageLabel(level)} · ${LEVELS[level].name}`;
   const fade = $('cinematicFade');
   clearTimeout(fadeTimeout);
@@ -1203,18 +1284,23 @@ $('mapNext').onclick = () => renderProgress(1);
 $('mapPrevFuture').onclick = () => renderProgress(mapPage-1);
 $('mapNextFuture').onclick = () => renderProgress(mapPage+1);
 $('resumeProgressBtn').onclick = $('continueCampaignBtn').onclick = () => launchLevelReliable(Math.min(LEVELS.length-1,getProgress()));
-$('shipsBtn').onclick = () => { setScreen('ships'); updateShipInfo(); };
+$('shipsBtn').onclick = () => { initShips(); setScreen('ships'); };
 $('shipPlayBtn').onclick = () => launchLevelReliable(0);
+$('shipContinueBtn').onclick = () => {
+  const progress = getProgress();
+  if (progress > 0 && progress < LEVELS.length) launchLevelReliable(progress);
+};
 $('shipsBack').onclick = () => setScreen('start');
 $('optsBtn').onclick = () => { setScreen('opts'); updateOpts(); };
 $('retryBtn').onclick = () => launchLevelReliable(S.level);
 $('menuBtn').onclick = () => setScreen('start');
-$('nextMissionBtn').onclick = () => {
+function continueToNextMission() {
   if (nextMission === null) return;
   const level = nextMission;
   if (level === 1) playVideoOverlay(AFTER_BOSS11_VIDEO_URL,'Transmission 1.1',() => launchLevelReliable(level,true));
   else launchLevelReliable(level,true);
-};
+}
+$('nextMissionBtn').onclick = continueToNextMission;
 for (const [key,on,off,persist] of [
   ['sound','soundOn','soundOff','df0sound'],['music','musicOn','musicOff','df0music'],
   ['invincible','invOn','invOff','df0invincible'],

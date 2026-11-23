@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Delta Force 0 — V7.0</title>
-<link rel="stylesheet" href="game.css?v=7.0.0">
+<title>Delta Force 0 — V7.1</title>
+<link rel="stylesheet" href="game.css?v=7.1.0">
 
 <link rel="icon" href="assets/icons/icon-192.png">
-<link rel="manifest" href="manifest.webmanifest?v=7.0.0">
+<link rel="manifest" href="manifest.webmanifest?v=7.1.0">
 <meta name="theme-color" content="#061521">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -22,10 +22,10 @@
 <main id="start" class="screen" style="background-image:url('assets/media/asset-2e9ebfa560b75ac4.png')">
   <div class="panel title-panel">
     <h1 class="sr-only">Delta Force 0</h1>
-    <p class="subtitle">Campagne arcade · V7.0</p>
+    <p class="subtitle">Campagne arcade · V7.1</p>
     <div class="menuActions">
       <button id="playBtn" class="btn primary">Jouer</button>
-      <button id="shipsBtn" class="btn">Choix du vaisseau</button>
+      <button id="shipsBtn" class="btn">Hangar · Choix de l’appareil</button>
       <button id="optsBtn" class="btn">Options</button>
     </div>
     <p class="tiny" id="controlHint">Glissez pour piloter. Le tir est automatique.</p>
@@ -60,7 +60,7 @@
     <button id="resumeProgressBtn" class="btn primary">Jouer au prochain niveau</button>
   </div>
 </div>
-<div id="ships" class="screen hidden" style="background-image:url('assets/media/asset-2e9ebfa560b75ac4.png')"><div class="panel"><img class="logo" src="assets/media/asset-9b927fa305681cda.png"><div class="subtitle">Choix du vaisseau</div><div id="shipGrid" class="shipGrid"></div><div id="shipInfo" class="shipInfo"></div><button id="shipPlayBtn" class="btn primary">Jouer avec ce vaisseau</button><div class="shipHint">Touchez un avion pour afficher ses facultés et ses quatre améliorations.</div><button id="shipsBack" class="btn">Retour</button></div></div>
+<div id="ships" class="screen hidden" style="background-image:url('assets/media/asset-2e9ebfa560b75ac4.png')"><div class="panel"><img class="logo" src="assets/media/asset-9b927fa305681cda.png"><div class="subtitle">Choix de l’appareil</div><div id="shipGrid" class="shipGrid"></div><div id="shipInfo" class="shipInfo"></div><button id="shipContinueBtn" class="btn primary" hidden>Reprendre la campagne</button><button id="shipPlayBtn" class="btn">Décoller en 1.1</button><button id="shipsBack" class="btn">Retour</button></div></div>
 <div id="opts" class="screen hidden" style="background-image:url('assets/media/asset-ee963b5b7ed4bdf8.png')"><div class="panel"><img class="logo" src="assets/media/asset-9b927fa305681cda.png"><div class="subtitle">Options</div><div class="optRow"><strong>Effets sonores</strong><div class="toggle"><button id="soundOn" class="smallBtn">ON</button><button id="soundOff" class="smallBtn">OFF</button></div></div><div class="soundCtl"><strong>Volume effets</strong><input id="soundVolume" type="range" min="0" max="100" step="5" value="75"><span id="soundVolumeVal" class="soundVal">75%</span></div><div class="optRow"><strong>Musique</strong><div class="toggle"><button id="musicOn" class="smallBtn">ON</button><button id="musicOff" class="smallBtn">OFF</button></div></div><div class="soundCtl"><strong>Volume musique</strong><input id="musicVolume" type="range" min="0" max="100" step="5" value="42"><span id="musicVolumeVal" class="soundVal">42%</span></div><div class="testMode"><div class="optRow"><strong>Invincible (mode test)</strong><div class="toggle"><button id="invOn" class="smallBtn">ON</button><button id="invOff" class="smallBtn">OFF</button></div></div><div class="tiny" style="font-size:11px;color:#f4d49d;margin-top:6px">Permet de tester les niveaux, boss et armes sans perdre de vie.</div></div><label class="optRow" for="graphicsQuality"><strong>Qualité graphique</strong><select id="graphicsQuality"><option value="auto">Automatique</option><option value="high">Élevée</option><option value="medium">Moyenne</option><option value="low">Économie</option></select></label>
     <label class="optRow" for="reduceEffects"><strong>Réduire les flashs et secousses</strong><input id="reduceEffects" type="checkbox"></label>
     <div class="subtitle" style="font-size:13px;margin-top:14px">Musiques des niveaux</div><div id="trackList" class="trackList"></div><button id="optsBack" class="btn">Retour</button></div></div>
@@ -71,6 +71,7 @@
     <p id="endText"></p>
     <p id="resultAward" hidden>Quatre étoiles rouges récupérées</p>
     <dl id="resultStats" class="resultStats"></dl>
+    <div id="hangarRewards" aria-live="polite"></div>
     <div class="debriefActions">
       <button id="nextMissionBtn" class="btn primary" hidden>Mission suivante</button>
       <button id="retryBtn" class="btn primary">Recommencer</button>
@@ -102,11 +103,11 @@
   </div>
 </div>
 
-<script defer src="campaign.js?v=7.0.0"></script>
-<script defer src="airframes.js?v=7.0.0"></script>
-<script defer src="scenery.js?v=7.0.0"></script>
-<script defer src="bosses-v6.js?v=7.0.0"></script>
-<script defer src="combat-v6.js?v=7.0.0"></script>
-<script defer src="render.js?v=7.0.0"></script>
-<script defer src="game.js?v=7.0.0"></script>
+<script defer src="campaign.js?v=7.1.0"></script>
+<script defer src="airframes.js?v=7.1.0"></script>
+<script defer src="scenery.js?v=7.1.0"></script>
+<script defer src="bosses-v6.js?v=7.1.0"></script>
+<script defer src="combat-v6.js?v=7.1.0"></script>
+<script defer src="render.js?v=7.1.0"></script>
+<script defer src="game.js?v=7.1.0"></script>
 </body></html>

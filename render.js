@@ -218,8 +218,50 @@ function drawCongratulations() {
   ctx.restore();
 }
 
+function drawHelicopterHull(pilot,player) {
+  const {width,height} = pilot.rotorcraft;
+  const hull = imgs['plane_'+pilot.id+'_0'];
+  if (hull) ctx.drawImage(hull,-width/2,-height/2,width,height);
+  else {
+    // Keep the aircraft readable during its first image download.
+    ctx.fillStyle = pilot.id === 'libellule' ? '#625274' : '#416368';
+    ctx.fillRect(-2,2,4,height*.42);ctx.fillRect(-width*.28,-9,width*.56,8);
+    ctx.beginPath();ctx.ellipse(0,-5,width*.16,height*.35,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle = '#82ced9';ctx.beginPath();ctx.ellipse(0,-height*.23,width*.10,height*.10,0,0,Math.PI*2);ctx.fill();
+  }
+  if (player.muzzleFlash > .035) {
+    const light = pilot.id === 'libellule', x = light ? (player.pulseSide || 1)*12 : 0;
+    ctx.drawImage(Scenery.flare(pilot.color),x-4,light ? -29 : -45,8,11);
+  }
+}
+
+function drawRotors(pilot) {
+  const {height,rotors} = pilot.rotorcraft;
+  for (const rotor of rotors) {
+    const {radius,blades,rate} = rotor, small = radius < 15;
+    ctx.save();
+    ctx.translate(0,(rotor.y-.5)*height);
+    ctx.rotate(S.levelTime*rate + rotor.y*3);
+    for (let i=0; i<blades; i++) {
+      ctx.rotate(2*Math.PI/blades);
+      if (visualQuality() > 0 && !small) {
+        ctx.fillStyle = 'rgba(183,205,215,.10)';
+        ctx.beginPath();ctx.moveTo(3,0);ctx.arc(0,0,radius,-.25,0);ctx.closePath();ctx.fill();
+      }
+      ctx.fillStyle = 'rgba(27,42,52,.71)';
+      ctx.beginPath();ctx.moveTo(2,-1);ctx.lineTo(radius*.60,-2);
+      ctx.lineTo(radius,small ? -.8 : -2.8);ctx.lineTo(radius-.7,1);ctx.lineTo(3,1.6);ctx.closePath();ctx.fill();
+      ctx.strokeStyle = 'rgba(218,234,240,.64)';ctx.lineWidth = small ? .55 : 1.05;
+      ctx.beginPath();ctx.moveTo(4,-.8);ctx.lineTo(radius,-1.9);ctx.stroke();
+      if (!small) { ctx.fillStyle=pilot.color;ctx.fillRect(radius-5,-1.9,3,1.8); }
+    }
+    ctx.fillStyle='#d0e0e0';ctx.beginPath();ctx.arc(0,0,small ? 1.4 : 2.6,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  }
+}
+
 function drawMountedWeapons(pilot,player) {
-  const colors = {blue:'#91afbd',green:'#8d9f78',red:'#bf8176',gold:'#c6ad74'};
+  const colors = {blue:'#91afbd',green:'#8d9f78',red:'#bf8176',gold:'#c6ad74',libellule:'#ad91c4',grizzly:'#90a8a9'};
   FlightArms.forEachMount(pilot.id,S.equipment,(mount,side,key) => {
     const socket = FlightArms.mountPose(mount,side,key,player);
     ctx.save();

@@ -596,6 +596,46 @@ async function testTmfEmbed(browser, gameBase, tmfBase) {
   }
 }
 
+async function testSecretHangar(browser,base) {
+  const context = await browser.newContext({...devices['Pixel 7'],locale:'fr-FR'});
+  try {
+    const page = await context.newPage();
+    const errors = errorsFrom(page);
+    await boot(page,base);
+    await page.evaluate(() => {
+      localStorage.setItem('df0progress','6');
+      localStorage.setItem('df0ship','grizzly');
+    });
+    await page.reload();
+    await page.locator('#shipsBtn').tap();
+    const cards = page.locator('#shipGrid button');
+    assert.equal(await cards.count(),4);
+    assert.equal(await page.evaluate(() => S.selectedShip),'blue');
+    await page.locator('#shipContinueBtn').tap();
+    for (const [finished,id,number] of [[6,'libellule',5],[10,'grizzly',6]]) {
+      await page.waitForFunction(level => S.running && S.level === level,finished);
+      await page.evaluate(() => { S.score=12345; S.lives=4; nextLevel(); });
+      const reward = page.locator('#hangarRewards button');
+      assert.equal(await reward.count(),1);
+      await reward.tap();
+      await page.waitForFunction(level => S.running && S.level === level,finished+1);
+      assert.deepEqual(await page.evaluate(()=>[ship().id,S.weapon,S.equipment.length,S.lives,S.score]),[id,1,0,4,12345]);
+      await page.reload();
+      await page.locator('#shipsBtn').tap();
+      assert.equal(await cards.count(),number);
+      assert.equal(await page.locator('#shipGrid [aria-pressed=true]').getAttribute('data-id'),id);
+      if (number===5) {
+        await page.evaluate(() => { setProgress(10);initShips(); });
+        assert.equal(await cards.count(),5);
+        await page.locator('#shipContinueBtn').tap();
+      }
+    }
+    await page.locator('#shipPlayBtn').tap();
+    await page.waitForFunction(()=>S.running && S.level===0 && ship().id==='grizzly');
+    assert.deepEqual(errors,[]);
+  } finally { await context.close(); }
+}
+
 async function main() {
   const server = process.env.DF0_BASE_URL ? null : await startServer();
   const base = process.env.DF0_BASE_URL || `http://127.0.0.1:${server.address().port}/`;
@@ -604,6 +644,7 @@ async function main() {
     browser = await chromium.launch({ channel: process.env.DF0_BROWSER_CHANNEL, executablePath: process.env.DF0_BROWSER_EXECUTABLE, headless: true });
     await testDesktop(browser, base);
     await testAndroid(browser, base);
+    await testSecretHangar(browser, base);
     await testCampaign(browser, base);
     if (process.env.DF0_TMF_URL) await testTmfEmbed(browser, base, process.env.DF0_TMF_URL);
   } finally {

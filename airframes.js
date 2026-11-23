@@ -26,6 +26,16 @@ const FlightArms = (() => {
       u2:station('Lentille focale','coil',0,-31,0,870,1.40,10),
       u3:station('Émetteurs solaires','coil',29,-7,141,770,1.00,9),
       u4:station('Miroirs de flanc','fin',40,4,217,747,.94,8)
+    }, libellule: {
+      u1:station('Bobines latérales','coil',13,-16,12,930,.68,6),
+      u2:station('Fourche ionique','fin',20,-11,61,905,.66,6),
+      u3:station('Rails de déviation','rail',26,-6,117,874,.70,6),
+      u4:station('Électrodes de flanc','coil',33,1,164,844,.74,7)
+    }, grizzly: {
+      u1:station('Tubes jumelés','barrel',18,-17,9,690,1.16,9),
+      u2:station('Mortier ventral','pod',0,-27,0,663,1.89,12),
+      u3:station('Nacelles de flanc','pod',28,-4,64,714,1.23,10),
+      u4:station('Affûts lourds','barrel',36,4,103,732,1.27,10)
     }
   };
   function forEachMount(pilot, equipment, callback) {

@@ -7,7 +7,8 @@ function createCombatV6({
 }) {
   const palette = {
     blue: ['#c8f9ff', '#39c4ff'], green: ['#eafaac', '#72e64c'],
-    red: ['#ffe2b3', '#ff5a37'], gold: ['#fff3b0', '#ffbb43']
+    red: ['#ffe2b3', '#ff5a37'], gold: ['#fff3b0', '#ffbb43'],
+    libellule:['#f2ddff','#aa77ff'], grizzly:['#fff0d2','#fa934a']
   };
   const roles = {
     fighter:     {type:'green',  hp:3.2, speed:142, rx:23, ry:29, rate:2.6, color:'#5ce2ff'},
@@ -104,7 +105,7 @@ function createCombatV6({
     ...FRONT_MISSIONS.map(front => front.waves)
   ];
   const originalSurfaceEscorts = ['patrol','cutter','flak','cutter','patrol','cutter','prism','flak'];
-  const cooldowns = {blue:15, green:17, red:15, gold:18};
+  const cooldowns = {blue:15, green:17, red:15, gold:18, libellule:14, grizzly:19};
   const warningQueue = [];
   const trails = [];
   const impacts = [];
@@ -649,14 +650,21 @@ function createCombatV6({
     const tier = Math.min(5, S.weapon);
     const equipment = S.equipment;
     const frame = FlightArms.pose(S.bank,S.levelTime);
-    const axial = FlightArms.muzzle(p,0,-37,frame);
+    let offset = 0;
+    if (sh.id === 'libellule') {
+      p.pulseSide = -(p.pulseSide || 1);
+      offset = p.pulseSide * 12;
+    }
+    const axial = FlightArms.muzzle(p,offset,sh.id === 'libellule' ? -20 : -37,frame);
     const stock = {
       blue:[-825,2.2+tier*.16,8+tier], green:[-725,3+tier*.39,11+tier],
-      red:[-935,2.14+tier*.14,7], gold:[-797,2.02+tier*.23,8+tier]
+      red:[-935,2.14+tier*.14,7], gold:[-797,2.02+tier*.23,8+tier],
+      libellule:[-968,2.22+tier*.19,7+tier*.4], grizzly:[-654,3.32+tier*.42,12+tier]
     }[sh.id];
     p.cool = sh.fire * (1 - (tier-1)*.035);
     const corePierces = sh.id==='green' && equipment.includes('u2');
-    addPlayerBullet(p,0,0,stock[0],stock[1],stock[2],{...axial,piercing:corePierces,remaining:corePierces ? (equipment.includes('u4') ? 3 : 2) : 1});
+    addPlayerBullet(p,0,0,stock[0],stock[1],stock[2],{...axial,splash:sh.id === 'grizzly' ? 48 : 0,
+      piercing:corePierces,remaining:corePierces ? (equipment.includes('u4') ? 3 : 2) : 1});
     FlightArms.forEachMount(sh.id,equipment,(mount,side,key) => {
       const socket = FlightArms.mountPose(mount,side,key,p);
       const tip = FlightArms.muzzle(p,socket.x,socket.y-12,frame);
@@ -763,8 +771,8 @@ function createCombatV6({
         const landed = damageTarget(target, b.damage, cx, cy, b);
         if (landed) marked(b);
         if (S.bossDeath) return;
-        if (b.turn && landed) {
-          const range = b.kind === 'blueMissile' ? 56 : 37;
+        if ((b.turn || b.splash) && landed) {
+          const range = b.splash || (b.kind === 'blueMissile' ? 56 : 37);
           if (target.targetType === 'enemy' || target.targetType === 'ground') {
             for (const near of targets) {
               if (near === target || (near.targetType !== 'enemy' && near.targetType !== 'ground') ||
@@ -836,7 +844,13 @@ function createCombatV6({
     attack = {ship:sh.id, t:0, x:p.x, y:p.y - 32, emitted:0, hit:false, age:0, tick:0, struck:new Set()};
     if (sh.id === 'blue') sfx('lockOn');
     else if (sh.id === 'red') sfx('redSwarm');
-    else sfx(sh.id === 'green' ? 'lanceCharge' : 'solarCharge');
+    else if (sh.id === 'libellule') {
+      attack.segments = [];
+      sfx('ionCharge');
+    } else if (sh.id === 'grizzly') {
+      attack.zones = seismicZones(p);
+      sfx('seismicMark');
+    } else sfx(sh.id === 'green' ? 'lanceCharge' : 'solarCharge');
     return true;
   }
 
@@ -897,6 +911,69 @@ function createCombatV6({
     return false;
   }
 
+  function updateIonChain(a, targets) {
+    if (a.emitted >= 4 || a.t < .14 + a.emitted * .11) return a.t > .82;
+    const first = !a.emitted;
+    const origin = first ? {x:a.x, y:a.y} : a.segments[a.segments.length - 1].to;
+    let best, distance = first ? 535 : 175;
+    for (const target of targets) {
+      if (target.dead || target.hp <= 0 || a.struck.has(target.id) || target.y > H || (first && target.y >= origin.y)) continue;
+      const d = Math.hypot(target.x-origin.x,target.y-origin.y);
+      if (d < distance) { best = target; distance = d; }
+    }
+    if (first) S.stats.shots++;
+    if (best) {
+      const to = {x:best.x,y:best.y};
+      a.segments.push({from:origin,to,time:a.t});
+      a.struck.add(best.id);
+      if (damageTarget(best,42 - a.emitted*4,to.x,to.y,{ship:a.ship,kind:'ionChain'})) marked(a);
+      addImpact(to.x,to.y,palette[a.ship][1],25,false,true);
+      sfx('ionArc');
+      a.emitted++;
+    } else {
+      if (first) {
+        a.segments.push({from:origin,to:{x:origin.x,y:Math.max(0,origin.y-155)},time:a.t});
+        sfx('ionArc');
+      }
+      a.emitted = 4;
+    }
+    return !!S.bossDeath;
+  }
+
+  function seismicZones(p) {
+    const aim = {x:p.x, y:Math.max(35,p.y-255)};
+    let best, distance = Infinity;
+    for (const target of liveTargets()) {
+      if (target.y >= p.y-30 || p.y-target.y > 650 || Math.abs(target.x-p.x) > 165) continue;
+      const d = Math.hypot(target.x-aim.x,target.y-aim.y);
+      if (d < distance) { best = target; distance = d; }
+    }
+    const center = best || aim;
+    return [[0,63],[-48,0],[48,-63]].map(([dx,dy],i) => ({
+      x:clamp(center.x+dx,25,W-25),y:clamp(center.y+dy,20,H-20),time:.39+i*.24,hit:false
+    }));
+  }
+
+  const seismicRadius = 82;
+  function updateBarrage(a, targets) {
+    for (const zone of a.zones) {
+      if (zone.fired || a.t < zone.time) continue;
+      zone.fired = true;
+      S.stats.shots++;
+      sfx('seismicImpact');
+      addImpact(zone.x,zone.y,palette[a.ship][1],54,true,true);
+      S.shake = Math.max(S.shake || 0,.10);
+      for (const target of targets) {
+        const dx = Math.max(0,Math.abs(target.x-zone.x)-target.rx*.65);
+        const dy = Math.max(0,Math.abs(target.y-zone.y)-target.ry*.65);
+        if (dx*dx+dy*dy > seismicRadius*seismicRadius) continue;
+        if (damageTarget(target,25,target.x,target.y,{ship:a.ship,kind:'seismicWave'},true)) marked(zone);
+        if (S.bossDeath) return true;
+      }
+    }
+    return a.t > 1.30;
+  }
+
   function updateAttack(dt, targets) {
     if (!attack) return;
     const p = S.player;
@@ -906,6 +983,10 @@ function createCombatV6({
     }
     attack.t += dt;
     const a = attack;
+    if (a.ship === 'libellule' || a.ship === 'grizzly') {
+      if (a.ship === 'libellule' ? updateIonChain(a,targets) : updateBarrage(a,targets)) attack = null;
+      return;
+    }
     if (a.ship === 'green' || a.ship === 'gold') {
       if (updateBeam(a, p, dt, targets)) attack = null;
       return;
@@ -1068,7 +1149,13 @@ function createCombatV6({
         ctx.fillRect(-1.8, 12, 3.6, 9 + Math.sin(b.age * 45) * 3);
       } else {
         const width = b.size * .62;
-        if (b.ship === 'gold') {
+        if (b.ship === 'libellule') {
+          ctx.beginPath();ctx.moveTo(1,-half);ctx.lineTo(-width,1);ctx.lineTo(-1,0);
+          ctx.lineTo(-1,half*.8);ctx.lineTo(width,-3);ctx.lineTo(1,-1);ctx.closePath();ctx.fill();
+        } else if (b.ship === 'grizzly') {
+          ring(0,-2,width*.8,half*.57);ctx.fill();
+          ctx.fillRect(-width*.67,half*.29,width*1.34,4);
+        } else if (b.ship === 'gold') {
           ctx.beginPath();ctx.moveTo(0,-half);ctx.lineTo(width,0);ctx.lineTo(0,half*.72);ctx.lineTo(-width,0);ctx.closePath();ctx.fill();
         } else if (b.ship === 'green') {
           ring(0,0,width*.77,half*.78);ctx.fill();
@@ -1134,9 +1221,51 @@ function createCombatV6({
     ctx.restore();
   }
 
+  function drawRotorcraftSpecial(a) {
+    const [core,edge] = palette[a.ship];
+    ctx.save();
+    if (a.ship === 'libellule') {
+      if (!a.segments.length) {
+        ctx.strokeStyle = core;ctx.lineWidth = 2;
+        ring(a.x,a.y,4+a.t*64,4+a.t*64);ctx.stroke();
+      }
+      for (const segment of a.segments) {
+        const fade = 1-(a.t-segment.time)/.34;
+        if (fade <= 0) continue;
+        const {from,to} = segment, dx = to.x-from.x, dy = to.y-from.y;
+        const length = Math.max(1,Math.hypot(dx,dy)), steps = Math.max(3,Math.ceil(length/24));
+        ctx.beginPath();ctx.moveTo(from.x,from.y);
+        for (let i=1; i<steps; i++) {
+          const zap = Math.sin(i*11.7 + segment.time*84)*Math.min(11,length/9);
+          ctx.lineTo(from.x+dx*i/steps-dy/length*zap,from.y+dy*i/steps+dx/length*zap);
+        }
+        ctx.lineTo(to.x,to.y);
+        ctx.globalAlpha = fade*(reducedEffects() ? .50 : .82);
+        ctx.strokeStyle = edge;ctx.lineWidth = 5;ctx.stroke();
+        ctx.strokeStyle = core;ctx.lineWidth = 1.7;ctx.stroke();
+      }
+    } else {
+      for (const zone of a.zones) {
+        const age = a.t-zone.time;
+        if (age > .43) continue;
+        const r = age < 0 ? 17 + Math.min(.6,-age)*25 : 10 + Math.sin(age/.43*Math.PI/2)*(seismicRadius-10);
+        ctx.globalAlpha = age < 0 ? .72 : (1-age/.43)*(reducedEffects() ? .55 : .9);
+        ctx.strokeStyle = age < 0 ? core : edge;ctx.lineWidth = age < 0 ? 1.6 : 3.8;
+        ctx.setLineDash(age < 0 ? [8,5] : []);ring(zone.x,zone.y,r,r);ctx.stroke();
+        ctx.setLineDash([]);ctx.lineWidth = 1.4;
+        if (age < 0) {
+          ctx.beginPath();ctx.moveTo(zone.x-5,zone.y);ctx.lineTo(zone.x+5,zone.y);
+          ctx.moveTo(zone.x,zone.y-5);ctx.lineTo(zone.x,zone.y+5);ctx.stroke();
+        } else { ctx.strokeStyle=core;ring(zone.x,zone.y,r*.78,r*.78);ctx.stroke(); }
+      }
+    }
+    ctx.restore();
+  }
+
   function drawSpecial() {
     if (!attack && !S.pBullets.some(b => b.turn && b.target)) return;
     const a = attack;
+    if (a?.ship === 'libellule' || a?.ship === 'grizzly') { drawRotorcraftSpecial(a); return; }
     const targets = liveTargets();
     const locks = new Set();
     for (const b of S.pBullets) if (b.turn && b.target) locks.add(b.target);

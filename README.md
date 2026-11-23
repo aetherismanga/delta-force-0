@@ -1,6 +1,6 @@
-# Delta Force 0 — V7.0
+# Delta Force 0 — V7.1
 
-Shoot’em up vertical avec seize missions, quatre vaisseaux et une campagne rejouable. Les cinématiques et les enregistrements de progression de la V5.2 sont repris.
+Shoot’em up vertical avec seize missions, quatre avions de départ et deux hélicoptères à découvrir dans la campagne. Les cinématiques et les enregistrements de progression de la V5.2 sont repris.
 
 - **Pilotage** par glissement tactile, souris (cliquer et glisser), flèches ou ZQSD/WASD.
 - **Tir automatique** pendant le vol. Spécial avec Espace, X ou le bouton à l’écran. Pause avec Échap ou P.

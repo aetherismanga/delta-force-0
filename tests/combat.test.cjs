@@ -10,7 +10,9 @@ const configs = {
   blue: {id:'blue', fire:.145, damageMul:1, hitbox:13},
   green:{id:'green', fire:.18, damageMul:1.38, hitbox:16},
   red:  {id:'red', fire:.098, damageMul:.82, hitbox:11},
-  gold: {id:'gold', fire:.155, damageMul:1.18, hitbox:17}
+  gold: {id:'gold', fire:.155, damageMul:1.18, hitbox:17},
+  libellule: {id:'libellule', fire:.115, damageMul:.95, hitbox:10},
+  grizzly: {id:'grizzly', fire:.235, damageMul:1.40, hitbox:17}
 };
 
 function setup({level = 0, ship = 'blue', targets = [], afterPlayerHit, afterBossHit} = {}) {
@@ -244,7 +246,7 @@ test('each craft has a distinct primary tier progression', () => {
     assert(S.pBullets.slice(1).some(b => !b.vx && b.damage > baseline));
     signatures.add(S.pBullets.map(b => [b.vx, b.vy, b.damage]).join('|'));
   }
-  assert.equal(signatures.size, 4);
+  assert.equal(signatures.size, 6);
 });
 
 test('fast shots use swept contact and respect the visible player hitbox', () => {
@@ -329,8 +331,50 @@ test('a collected U4 fires from its own wingtip sockets even as the first pickup
     combat.firePlayer();
     assert.equal(S.pBullets.length,3);
     const [base,left,right]=S.pBullets;
-    assert.ok(left.x < base.x-35 && right.x > base.x+35);
+    const span = ship === 'libellule' ? 32 : 35;
+    assert.ok(left.x < S.player.x-span && right.x > S.player.x+span);
     assert.ok(left.y > base.y && right.y > base.y);
     assert.ok(left.vx < 0 && right.vx > 0);
   }
+});
+
+test('the scout alternates its stock emitters and the heavy helicopter bursts against a close formation', () => {
+  const scout = setup({ship:'libellule'});
+  for (let i=0;i<3;i++) { scout.S.player.cool = 0; scout.combat.firePlayer(); }
+  assert.deepEqual(scout.S.pBullets.map(b => b.x-scout.S.player.x),[-12,12,-12]);
+  const {S,combat} = setup({ship:'grizzly'});
+  const trio = [270,305,365].map((x,i) => ({id:i,hp:100,x,y:700,rx:7,ry:7,targetType:'enemy'}));
+  S.enemies.push(...trio);
+  combat.firePlayer();
+  for (let i=0;i<35;i++) combat.updateProjectiles(1/120);
+  assert(trio[0].hp < trio[1].hp && trio[1].hp < trio[2].hp);
+  assert.equal(trio[2].hp,100);
+  assert.equal(S.stats.hits,1);
+});
+
+test('the ion chain jumps to four different nearby targets, and spends just one charge', () => {
+  const targets = [[270,695],[300,600],[342,508],[400,419],[439,359],[33,95]].map(([x,y],id) =>
+    ({id,hp:100,x,y,rx:12,ry:15,kind:'bossNode'}));
+  const {S,combat,hits,sounds} = setup({ship:'libellule',targets});
+  assert.equal(combat.special(),true);
+  assert.equal(combat.special(),false);
+  for (let i=0;i<120;i++) combat.updateProjectiles(1/120);
+  assert.deepEqual(hits.map(h=>h.target.id),[0,1,2,3]);
+  assert(hits.every(h=>h.kind==='ionChain'));
+  assert.equal(S.stats.shots,1);assert.equal(S.stats.hits,1);
+  assert.equal(sounds.filter(s=>s==='ionArc').length,4);
+});
+
+test('the heavy barrage warns then strikes three fixed areas, leaving the far lane untouched', () => {
+  const targets = [[270,580],[30,580]].map(([x,y],id) => ({id,hp:200,x,y,rx:10,ry:10,kind:'bossNode'}));
+  const {S,combat,hits,sounds} = setup({ship:'grizzly',targets});
+  assert.equal(combat.special(),true);
+  S.player.x = 60;
+  for (let i=0;i<45;i++) combat.updateProjectiles(1/120);
+  assert.equal(hits.length,0);
+  for (let i=0;i<145;i++) combat.updateProjectiles(1/120);
+  assert.deepEqual(hits.map(h=>h.target.id),[0,0,0]);
+  assert(hits.every(h=>h.kind==='seismicWave'));
+  assert.equal(sounds.filter(s=>s==='seismicImpact').length,3);
+  assert.equal(S.stats.shots,3);assert.equal(S.stats.hits,3);
 });
