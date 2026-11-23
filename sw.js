@@ -1,9 +1,9 @@
 'use strict';
 
-const CACHE = 'df0-web-v7.1.0';
+const CACHE = 'df0-web-v7.2.0';
 const VERSIONED_SHELL = ['game.css','game.js','campaign.js','airframes.js','scenery.js','combat-v6.js','bosses-v6.js','render.js','manifest.webmanifest'];
 const SHELL = [
-  './index.html',...VERSIONED_SHELL.map(name=>`./${name}?v=7.1.0`),
+  './index.html',...VERSIONED_SHELL.map(name=>`./${name}?v=7.2.0`),
   './assets/icons/icon-192.png','./assets/icons/icon-512.png',
 ];
 const FIRST_FLIGHT = [

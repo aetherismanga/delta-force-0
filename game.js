@@ -14,7 +14,7 @@ const LEVELS=[
  {name:"Archipel Sentinel",bg:"assets/media/asset-db68d325555c18f0.webp",music:"assets/media/asset-5826d4c7fbd4a177.mp3",boss:'chapter2',bossName:"Leviathan Azure",bossW:330,bossH:430,bossHP:1420,scroll:112,difficulty:1.34},
  {name:"Village des Cendres",bg:"assets/media/asset-4b8cb13f98415782.webp",music:"assets/media/asset-e0a03e9cc45094f1.mp3",boss:'chapter2',bossName:"Inferno Bastion",bossW:390,bossH:330,bossHP:1650,scroll:116,difficulty:1.42},
  {name:"Base Nocturne",bg:"assets/media/asset-b70f8b9f88ca1679.webp",music:"assets/media/asset-2ef885cd506f5e06.mp3",boss:'chapter2',bossName:"Nightfall Ω",bossW:390,bossH:470,bossHP:1980,scroll:120,difficulty:1.52},
- ...FRONT_MISSIONS.map((front,i) => ({name:front.name, bg:frontFile(i)+'.webp', music:frontFile(i)+'.mp3',
+ ...FRONT_MISSIONS.map((front,i) => ({name:front.name, theme:front.theme, bg:frontFile(i)+'.webp', music:frontFile(i)+'.mp3?v=7.2.0',
    bossName:front.boss.name, scroll:front.scroll}))
 ];
 const SHIPS=[
@@ -210,9 +210,8 @@ function updateShipInfo(){
 function shieldAlreadyAvailable(){return !!((S.player&&S.player.shield>0)||S.drops.some(d=>d.kind==='shield'))}
 
 const EQUIP_TYPES=['u1','u2','u3','u4'];
-function remainingEquipment(){return EQUIP_TYPES.filter(k=>!S.equipment.includes(k)&&!S.drops.some(d=>d.kind==='weapon'&&d.upgradeType===k))}
-function syncWeapon(){S.weapon=1+S.equipment.length}
-function resetEquipment(){S.equipment.length=0;syncWeapon()}
+function remainingEquipment(){return EQUIP_TYPES.filter(k=>FlightArms.canFit(S,k)&&!S.drops.some(d=>d.kind==='weapon'&&d.upgradeType===k))}
+function resetEquipment(){S.equipment.length=0;S.missingSides={};S.weapon=1}
 function grantStarReward(){if(S.starsRewardGranted)return;S.starsRewardGranted=true;S.special=1;S.specialCooldown=0;$('specialCount').textContent='x1';$('specialBtn').classList.remove('used');S.lives++;$('livesText').textContent='♥'.repeat(S.lives);showMsg('4 ÉTOILES ! SPÉCIAL RECHARGÉ + 1 VIE',2.4);sfx('pickup')}
 function startCongratulations(){S.rewardCelebration={t:0};S.enemies.length=0;S.eBullets.length=0;S.pBullets.length=0;stopMusic()}
 function drawImageCentered(im,x,y,maxW,maxH,rot=0,alpha=1){if(!im)return;const sc=Math.min(maxW/im.width,maxH/im.height),w=im.width*sc,h=im.height*sc;ctx.save();ctx.globalAlpha=alpha;ctx.translate(x,y);if(rot)ctx.rotate(rot);ctx.drawImage(im,-w/2,-h/2,w,h);ctx.restore()}
@@ -265,7 +264,24 @@ function initShips() {
 }
 
 function updateShips(){document.querySelectorAll('.shipCard').forEach(b=>{const active=b.dataset.id===S.selectedShip;b.classList.toggle('active',active);b.setAttribute('aria-pressed',active)});updateShipInfo()}
-function initTracks(){const t=$('trackList');t.innerHTML='';LEVELS.forEach((L,i)=>{const b=document.createElement('button');b.className='track';b.innerHTML=`<span>Niveau ${stageLabel(i)} — ${L.name}</span><span>▶ écouter</span>`;b.onclick=()=>{S.previewing=true;music.pause();music.src=L.music;music.loop=true;music.currentTime=0;if(S.music)music.play().catch(()=>{});document.querySelectorAll('.track').forEach((x,j)=>x.classList.toggle('active',j===i))};t.appendChild(b)})}
+function initTracks() {
+  const list=$('trackList');
+  list.replaceChildren();
+  LEVELS.forEach((level,i) => {
+    const button=document.createElement('button');
+    button.className='track';
+    button.innerHTML=`<span>Niveau ${stageLabel(i)} — ${level.name}${level.theme ? `<small class="trackTheme">${level.theme}</small>` : ''}</span><span>▶ écouter</span>`;
+    button.onclick=() => {
+      S.previewing=true;
+      cancelAnimationFrame(musicFade);
+      music.pause();
+      playMusic(level.music);
+      music.currentTime=0;
+      document.querySelectorAll('.track').forEach((track,j)=>track.classList.toggle('active',j===i));
+    };
+    list.appendChild(button);
+  });
+}
 
 function clampV(v,a,b){return Math.max(a,Math.min(b,v))}
 
@@ -294,7 +310,7 @@ const hud = Object.fromEntries([
 ].map(id => [id, $(id)]));
 const S = {
   scene: 'start', running: false, paused: false, level: 0, levelTime: 0, levelDuration: 60,
-  score: 0, missionScore: 0, lives: 3, weapon: 1, equipment: [],
+  score: 0, missionScore: 0, lives: 3, weapon: 1, equipment: [], missingSides: {},
   player: null, enemies: [], pBullets: [], eBullets: [], turrets: [], bossNodes: [],
   drops: [], fx: [], boss: null, bossDeath: null, rewardCelebration: null,
   starsCollected: 0, special: 1, specialCooldown: 0, touch: null, bank: 0,
@@ -501,6 +517,7 @@ function blastNoise(duration, cutoff, gain, delay = 0, filter = 'lowpass') {
 
 const blastLayers = {
   seismicImpact:[[.28,2000,.36]],
+  mountBreak:[[.24,3250,.49],[.14,4700,.22,.04,'bandpass']],
   explode:[[.32,2950,.62],[.12,3700,.20,.035,'bandpass']],
   armorBreak:[[.22,4900,.46,0,'bandpass'],[.17,3200,.24,.10,'bandpass']],
   hullBreak:[[.67,3300,.60],[.33,4300,.42,.24,'bandpass'],[.42,1700,.45,.48]],
@@ -532,6 +549,7 @@ const voices = {
   solarFire: [[215,.68,'triangle',.14,70],[1800,.45,'sine',.035,375]],
   armorBreak: [[185,.24,'triangle',.13,39],[470,.14,'sawtooth',.031,170]],
   shieldHit: [[810,.095,'sine',.067,340]],
+  mountBreak: [[195,.24,'triangle',.14,41],[635,.10,'sawtooth',.035,178]],
   enemyImpact: [[260,.065,'triangle',.042,98]],
   boss: [[90,.45,'triangle',.17,46],[170,.3,'sawtooth',.035,92,.08],[140,.39,'triangle',.11,62,.42]],
   victory: [[392,.19,'triangle',.14],[523,.21,'triangle',.15,523,.17],[659,.25,'triangle',.15,659,.36],
@@ -583,7 +601,7 @@ function setupLevel(first = false) {
   nextHudRefresh = 0;
   Object.assign(S, {
     levelTime: 0, bgY: 0, special: 1, specialCooldown: 0, boss: null,
-    bossDeath: null, rewardCelebration: null, shake: 0, hitStop: 0, transition: false,
+    bossDeath: null, rewardCelebration: null, defeatTime: 0, shake: 0, hitStop: 0, transition: false,
     starsCollected: 0, redStarsSpawned: 0, redStarNext: 8, starsRewardGranted: false,
     shieldSpawned: false, shieldDropAt: 33, dropSchedule: 9, respawnTimer: 0,
     bank: 0, touch: null, missionScore: S.score, stats: newStats(),
@@ -591,7 +609,7 @@ function setupLevel(first = false) {
   for (const key of ['enemies','pBullets','eBullets','turrets','bossNodes','drops','fx']) S[key] = [];
   const pilot = ship();
   S.player = {x:W/2, y:H-125, hp:pilot.hp, maxHp:pilot.hp, speed:pilot.speed,
-    cool:0, inv:1.6, dead:false, shield:0, vx:0, vy:0};
+    cool:0, inv:1.6, hitGrace:false, dead:false, shield:0, vx:0, vy:0};
   combat.reset();
   Scenery.reset(S.level);
   hideAlert();
@@ -643,38 +661,58 @@ function refreshHud() {
   hud.hpFill.style.width = (100*Math.max(0,S.player.hp)/S.player.maxHp)+'%';
 }
 
-function hitPlayer(ix, iy) {
+function hitPlayer(ix, iy, mount) {
   const p = S.player;
   if (!S.running || !p || p.dead) return;
   const x = ix ?? p.x, y = iy ?? p.y;
   if (S.invincible || p.shield > 0) {
+    if (p.shield > 0) {
+      p.shieldImpact = .36;
+      p.shieldAngle = Math.atan2(y-p.y,x-p.x);
+    }
     addImpact('shieldHit',x,y,.2,.35);
     sfx('shieldHit');
     return;
   }
-  if (p.inv > 0) return;
+  // Launch protection covers the whole craft. After a hull hit, each surviving
+  // attachment can still take its own first impact from another incoming shot.
+  if (p.inv > 0 && !(mount && p.hitGrace)) return;
+  const detached = mount && FlightArms.detach(S,mount.key,mount.side);
+  if (mount && !detached) return;
   const damage = Math.min(p.hp, ship().damageTaken);
   S.stats.damage += damage;
   p.hp -= damage;
   p.inv = .95;
+  p.hitGrace = true;
   S.shake = Math.max(S.shake,.19);
+  if (detached) {
+    const direction = mount.side || (x<p.x ? -1 : 1);
+    S.fx.push({type:'mountWreck',...mount,pilot:ship().id,life:.85,maxLife:.85,
+      vx:direction*93+(p.vx||0)*.18,vy:-61+(p.vy||0)*.12,spin:direction*6.8});
+    addImpact('boom',mount.x,mount.y,.34,.42);
+    sfx('mountBreak');
+    const location = mount.side < 0 ? 'gauche' : mount.side > 0 ? 'droit' : 'central';
+    showMsg(`${mount.key.toUpperCase()} · module ${location} détruit`,1.2);
+  }
   addImpact('playerImpact',x,y,.29,.45);
   sfx('hit');
   refreshHud();
   if (p.hp > .001) return;
   S.lives--;
   resetEquipment();
-  if (S.lives <= 0) {
-    finish(false, 'Vos vies sont épuisées.');
-    return;
-  }
+  refreshHud();
   addImpact('boom',p.x,p.y,.52,.65);
   p.dead = true;
   p.shield = 0;
-  S.respawnTimer = .72;
   S.eBullets.length = 0;
   S.pBullets.length = 0;
   releaseInput();
+  if (S.lives <= 0) {
+    S.defeatTime = .78;
+    stopMusic();
+    return;
+  }
+  S.respawnTimer = .72;
   showMsg(`Vie perdue · arme de base · ${S.lives} restante${S.lives > 1 ? 's' : ''}`, 1.7);
 }
 
@@ -704,7 +742,7 @@ function updateDrops(dt,p) {
     }
     S.dropSchedule -= dt;
     if (S.dropSchedule <= 0) {
-      if (S.equipment.length < 4) spawnDrop('weapon', W*(.26+Math.random()*.48));
+      if (FlightArms.needsEquipment(S)) spawnDrop('weapon', W*(.26+Math.random()*.48));
       S.dropSchedule = 12+Math.random()*3;
     }
   }
@@ -725,11 +763,9 @@ function updateDrops(dt,p) {
     if (!p.dead && d.y >= -8 && d.y <= H+12 &&
       Math.hypot(p.x-center.x,p.y-center.y) < (star ? 45 : 35)) {
       S.stats.bonuses++;
-      if (d.kind === 'weapon' && d.upgradeType && !S.equipment.includes(d.upgradeType)) {
-        S.equipment.push(d.upgradeType);
-        syncWeapon();
-        p.fitting = {key:d.upgradeType, remaining:.40};
-        showMsg(`${FlightArms.mounts[ship().id][d.upgradeType].name} · arme ${S.weapon}`, 1.6);
+      if (d.kind === 'weapon' && d.upgradeType && FlightArms.fit(S,d.upgradeType)) {
+        const name=FlightArms.mounts[ship().id][d.upgradeType].name;
+        showMsg(`${name} · ${p.fitting.side ? 'réparation' : 'arme '+S.weapon}`, 1.6);
       } else if (d.kind === 'shield') {
         p.shield = 4.75;
         showMsg('Bouclier actif',1.2);
@@ -785,6 +821,11 @@ function update(dt) {
   S.bgY += level.scroll * dt;
   S.shake = Math.max(0,S.shake-dt);
   updateEffects(dt);
+  if (S.defeatTime > 0) {
+    S.defeatTime = Math.max(0,S.defeatTime-dt);
+    if (!S.defeatTime) finish(false,'Vos vies sont épuisées.');
+    return;
+  }
   if (S.bossDeath) {
     BossV6.updateDeath(dt);
     refreshHud();
@@ -804,10 +845,11 @@ function update(dt) {
   p.cool = Math.max(0,p.cool-dt);
   p.inv = Math.max(0,p.inv-dt);
   p.shield = Math.max(0,p.shield-dt);
+  p.shieldImpact = Math.max(0,(p.shieldImpact || 0)-dt);
   if (S.respawnTimer > 0) {
     S.respawnTimer -= dt;
     if (S.respawnTimer <= 0) {
-      Object.assign(p,{dead:false,hp:p.maxHp,inv:2.5,x:W/2,y:H-125});
+      Object.assign(p,{dead:false,hp:p.maxHp,inv:2.5,hitGrace:false,x:W/2,y:H-125});
       sfx(ship().rotorcraft ? 'rotorStart' : 'engine');
     }
   }
@@ -827,7 +869,9 @@ function update(dt) {
     boostBossMusic();
   }
   combat.updateActors(dt);
+  if (S.defeatTime > 0) return;
   if (S.boss) BossV6.update(dt,p);
+  if (S.defeatTime > 0) return;
   if (!p.dead) combat.firePlayer();
   combat.updateProjectiles(dt);
   if (S.running) updateDrops(dt,p);
@@ -853,6 +897,8 @@ function drawPlayerCraft() {
   ctx.translate(p.x,p.y);
   ctx.rotate(rotation);
   ctx.globalAlpha = opacity;
+  const shielded = p.shield > 0;
+  if (shielded) drawShieldSurface(pilot,p,false);
   if (!pilot.rotorcraft) {
     const flame = Scenery.flare(pilot.color);
     const boost = Math.sin(S.levelTime*39)*3 + Math.min(20,Math.abs(p.vy||0)*.04);
@@ -860,25 +906,33 @@ function drawPlayerCraft() {
     ctx.drawImage(flame,-23,17,46,52+boost);
     ctx.drawImage(flame,-8,23,16,37+boost);
     ctx.globalCompositeOperation = 'source-over';
-    const image = imgs[`plane_${pilot.id}_${stage}`];
-    if (image) drawImageCentered(image,0,hover,78+stage*4,94+stage*5);
-    else drawSprite(imgs.players,pilot.frames.boost,0,hover,72,94);
   }
   ctx.save();
   ctx.translate(0,hover);
-  if (pilot.rotorcraft) drawHelicopterHull(pilot,p);
-  drawMountedWeapons(pilot,p);
-  if (pilot.rotorcraft) drawRotors(pilot);
-  ctx.restore();
-  if (p.shield > 0) {
-    ctx.strokeStyle = p.shield < .8 ? '#77e9ff88' : '#8befff';
-    ctx.fillStyle = '#76ddf219';
-    ctx.lineWidth = 2.6;
-    ctx.beginPath();
-    ctx.arc(0,0,40+Math.sin(S.levelTime*8)*1.4,0,Math.PI*2);
-    ctx.stroke();
-    ctx.fill();
+  const plate = hullPlate(pilot,stage);
+  if (plate) {
+    ctx.drawImage(plate.hull,-plateSize/2,-plateSize/2,plateSize,plateSize);
+    if (shielded) {
+      ctx.save();
+      ctx.globalAlpha = Math.min(1,.48+p.shield)*(.85+.15*(p.shieldImpact || 0)/.36);
+      ctx.drawImage(chargedHull(plate),-plateSize/2,-plateSize/2,plateSize,plateSize);
+      ctx.restore();
+    }
+  } else {
+    ctx.save();
+    if (shielded) { ctx.shadowColor='#74f6ff';ctx.shadowBlur=10; }
+    if (pilot.rotorcraft) drawHelicopterFallback(pilot);
+    else drawSprite(imgs.players,pilot.frames.boost,0,0,72,94);
+    ctx.restore();
   }
+  if (pilot.rotorcraft && p.muzzleFlash>.035) {
+    const light=pilot.id==='libellule',x=light ? (p.pulseSide||1)*12 : 0;
+    ctx.drawImage(Scenery.flare(pilot.color),x-4,light ? -29 : -45,8,11);
+  }
+  drawMountedWeapons(pilot,p);
+  if (pilot.rotorcraft) drawRotors(pilot,shielded);
+  ctx.restore();
+  if (shielded) drawShieldSurface(pilot,p,true);
   ctx.restore();
 }
 
@@ -902,6 +956,7 @@ function drawImpacts() {
   for (const impact of S.fx) {
     const life = clampV(impact.life/(impact.maxLife || .43),0,1);
     const size = 32*(impact.scale || .4);
+    if (impact.type==='mountWreck') { drawMountWreck(impact,life);continue; }
     if (impact.type === 'boom') {
       drawSprite(imgs.fx,FX.expl3,impact.x,impact.y,100*(impact.scale||.4)*(1.25-life*.25),
         88*(impact.scale||.4),0,Math.min(reducedEffects() ? .64 : 1,life*1.8));
@@ -1162,7 +1217,7 @@ function resumeGame() {
   audio();
   S.paused = false;
   $('pauseOverlay').classList.remove('show');
-  if (!S.bossDeath && !S.rewardCelebration) playMusic(missionTrack, S.boss ? 1 : .75);
+  if (!S.bossDeath && !S.rewardCelebration && !S.defeatTime) playMusic(missionTrack, S.boss ? 1 : .75);
   $('pauseBtn').blur();
   last = 0;
   setScreen(null);

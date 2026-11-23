@@ -5,7 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const code = ['campaign.js','airframes.js','combat-v6.js'].map(file => readFileSync(join(__dirname,'..',file),'utf8')).join('\n');
-const createCombat = runInNewContext(code + '\ncreateCombatV6');
+const {FlightArms,createCombatV6:createCombat} = runInNewContext(code + '\n({FlightArms,createCombatV6})');
 const configs = {
   blue: {id:'blue', fire:.145, damageMul:1, hitbox:13},
   green:{id:'green', fire:.18, damageMul:1.38, hitbox:16},
@@ -24,7 +24,7 @@ function setup({level = 0, ship = 'blue', targets = [], afterPlayerHit, afterBos
   const terrain = Array.from({length:16}, (_, i) => ({scroll:78 + i * 6}));
   const S = {
     level, levelTime:0, levelDuration:60, bgY:0, boss:null, bossDeath:null, running:true,
-    special:1, specialCooldown:0, weapon:1, score:0, stats:{shots:0, hits:0, kills:0}, equipment:[],
+    special:1, specialCooldown:0, weapon:1, score:0, stats:{shots:0, hits:0, kills:0}, equipment:[], missingSides:{},
     player:{x:270, y:835, dead:false, shield:0, cool:0}, enemies:[], turrets:[], pBullets:[], eBullets:[], fx:[]
   };
   const combat = createCombat({
@@ -39,7 +39,7 @@ function setup({level = 0, ship = 'blue', targets = [], afterPlayerHit, afterBos
     killEnemy:() => S.stats.kills++,
     hitPlayer(...point) {
       hits.push(point);
-      afterPlayerHit?.(S);
+      afterPlayerHit?.(S,...point);
     },
     drawEnemyUnit:() => {}, drawGroundObject:() => {}, quality:() => 2, reducedEffects:() => false,
     terrainPeriod:() => 828,
@@ -377,4 +377,78 @@ test('the heavy barrage warns then strikes three fixed areas, leaving the far la
   assert(hits.every(h=>h.kind==='seismicWave'));
   assert.equal(sounds.filter(s=>s==='seismicImpact').length,3);
   assert.equal(S.stats.shots,3);assert.equal(S.stats.hits,3);
+});
+
+function mountPoint(S,id,key,side) {
+  const station=FlightArms.mounts[id][key];
+  const socket=FlightArms.mountPose(station,side,key,S.player);
+  return FlightArms.muzzle(S.player,socket.x,socket.y,FlightArms.pose(S.bank,S.levelTime));
+}
+
+test('all six aircraft lose only the physical socket struck and can refit a missing side', () => {
+  for (const id of Object.keys(configs)) {
+    const {S,combat,hits}=setup({ship:id,afterPlayerHit(S,x,y,mount) {
+      if (mount) FlightArms.detach(S,mount.key,mount.side);
+    }});
+    S.bank=260; S.levelTime=.17;
+    assert(FlightArms.fit(S,'u4')); S.player.fitting=null;
+    const left=mountPoint(S,id,'u4',-1);
+    combat.spawnHostile({x:left.x,y:left.y-74,angle:Math.PI/2,speed:5000,size:7});
+    combat.updateProjectiles(.023);
+    assert.equal(hits.length,1,id);
+    assert.deepEqual([hits[0][2].key,hits[0][2].side],['u4',-1],id);
+    assert.equal(S.weapon,2);
+    assert.equal(combat.playerContact(left.x,left.y-50,left.x,left.y+4,2,2),null);
+    combat.firePlayer();
+    assert.equal(S.pBullets.length,2);
+    assert(S.pBullets[1].x>S.player.x,'the opposite side still fires');
+    assert(FlightArms.canFit(S,'u4'));
+    assert(FlightArms.fit(S,'u4'));
+    assert.equal(S.player.fitting.side,-1);
+    const fresh=mountPoint(S,id,'u4',-1);
+    assert(fresh.x<left.x-10,'replacement arrives from the damaged side');
+    assert.equal(combat.playerContact(fresh.x,fresh.y-20,fresh.x,fresh.y,2,2).mount.side,-1);
+    assert(!FlightArms.canFit(S,'u4'));
+    assert(FlightArms.detach(S,'u4',1));
+    assert(!FlightArms.detach(S,'u4',1),'same wreck cannot detach twice');
+    assert(FlightArms.detach(S,'u4',-1));
+    assert.equal(S.weapon,1);
+    assert.equal(S.equipment.length,0);
+  }
+});
+
+test('forward contact takes an axial mount first and the belly remains a separate target', () => {
+  const {S,combat}=setup({ship:'green'});
+  FlightArms.fit(S,'u4');FlightArms.fit(S,'u2');S.player.fitting=null;
+  const {x,y}=S.player;
+  const nose=combat.playerContact(x,y-95,x,y+30,3,3);
+  assert.deepEqual([nose.mount.key,nose.mount.side],['u2',0]);
+  assert.equal(combat.playerContact(x,y+55,x,y,3,3).mount,null);
+  FlightArms.detach(S,'u2',0);
+  assert.equal(combat.playerContact(x,y-95,x,y,3,3).mount,null);
+  assert.deepEqual(S.equipment,['u4']);
+});
+
+test('a moving wing can meet a stationary projectile and a ramming aircraft can strike an outboard station', () => {
+  const {S,combat,hits}=setup();
+  FlightArms.fit(S,'u4');S.player.fitting=null;
+  const start=S.player.x;
+  S.player.x+=65;
+  const crossed=combat.playerContact(start+56,S.player.y+4,start+56,S.player.y+4,3,3);
+  assert.equal(crossed.mount.side,1);
+  combat.updateProjectiles(.02);
+  const point=mountPoint(S,'blue','u4',-1);
+  combat.addEnemy('fighter',{x:point.x-8,y:point.y-3});
+  combat.updateActors(.01);
+  assert(hits.some(h=>h[2]?.key==='u4'&&h[2].side===-1));
+});
+
+test('the shield intercepts at its outer edge before guns, fitting animation and hull', () => {
+  const {S,combat}=setup({ship:'grizzly'});
+  FlightArms.fit(S,'u4');S.player.shield=4;
+  const pos=mountPoint(S,'grizzly','u4',1);
+  const field=combat.playerContact(pos.x,pos.y-100,pos.x,pos.y+10,3,3);
+  assert(field&&field.mount===null&&field.y<pos.y-8);
+  S.player.shield=0;
+  assert.equal(combat.playerContact(pos.x,pos.y-100,pos.x,pos.y,3,3).mount.side,1);
 });

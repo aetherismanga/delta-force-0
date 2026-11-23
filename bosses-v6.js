@@ -587,13 +587,14 @@ const BossV6 = (() => {
     } else if (b.transformed) {
       b.w = mix(b.w, 333, Math.min(1, dt * 5));
     }
+    const previousCoreX = b.core.x, previousCoreY = b.core.y;
     moveBoss(b, dt);
     positionParts(b);
     updateDamageEffects(b, dt);
     if (b.morph <= 0) updateWeapons(b, p, dt);
     if (p.dead || !b.core.rx || !b.core.ry) return;
-    const d = ((p.x - b.core.x) / (b.core.rx * .75)) ** 2 + ((p.y - b.core.y) / (b.core.ry * .72)) ** 2;
-    if (d < 1) hitPlayer(p.x, p.y);
+    const contact = combat.playerContact(previousCoreX,previousCoreY,b.core.x,b.core.y,b.core.rx*.75,b.core.ry*.72);
+    if (contact) hitPlayer(contact.x,contact.y,contact.mount);
   }
 
   function pulseCamera(shake, stop) {

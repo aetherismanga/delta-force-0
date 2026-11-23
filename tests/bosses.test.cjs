@@ -40,6 +40,7 @@ function fixture(level, options = {}) {
     visualQuality: () => options.low ? 0 : 2,
     reducedEffects: () => Boolean(options.low),
     combat: {
+      playerContact: () => null,
       spawnHostile: shot => shots.push(shot),
       addEnemy: (role, opts) => reinforcements.push({ role, ...opts })
     }

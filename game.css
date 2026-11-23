@@ -219,3 +219,5 @@ body:has(#app:fullscreen) #app{width:100vw;height:100dvh}
 #bossModules { font-size:clamp(10px,2.15vw,13px); }
 #progressVisualPage.hidden { display:none; }
 #progressFuturePage { flex:none; width:min(calc(100% - 16px),510px); }
+
+.track{text-align:left;align-items:center}.track>span:last-child{flex:none}.trackTheme{display:block;color:#b2cddd;font-size:12px;font-weight:500;margin-top:2px}

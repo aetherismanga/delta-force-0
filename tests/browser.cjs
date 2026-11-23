@@ -645,6 +645,14 @@ async function main() {
     await testDesktop(browser, base);
     await testAndroid(browser, base);
     await testSecretHangar(browser, base);
+    const equipment = await browser.newContext({...devices['Pixel 7'],locale:'fr-FR'});
+    try {
+      const page = await equipment.newPage();
+      await boot(page,base);
+      await page.locator('#shipsBtn').tap();
+      const reports = await page.evaluate(require('./loadout-browser.cjs'));
+      assert.equal(reports.length,6);
+    } finally { await equipment.close(); }
     await testCampaign(browser, base);
     if (process.env.DF0_TMF_URL) await testTmfEmbed(browser, base, process.env.DF0_TMF_URL);
   } finally {

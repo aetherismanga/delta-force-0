@@ -38,20 +38,49 @@ const FlightArms = (() => {
       u4:station('Affûts lourds','barrel',36,4,103,732,1.27,10)
     }
   };
-  function forEachMount(pilot, equipment, callback) {
-    for (const key of equipment) {
+  // A twin upgrade occupies one tier. If one nacelle is lost, its partner still fires.
+  function forEachMount(pilot, loadout, callback) {
+    for (const key of loadout.equipment) {
       const mount = mounts[pilot][key];
       if (!mount) continue;
-      if (mount.x) callback(mount, -1, key);
-      callback(mount, mount.x ? 1 : 0, key);
+      const missing = loadout.missingSides?.[key];
+      if (mount.x && missing !== -1) callback(mount,-1,key);
+      if (missing !== 1) callback(mount,mount.x ? 1 : 0,key);
     }
+  }
+  function canFit(loadout,key) {
+    return !loadout.equipment.includes(key) || loadout.missingSides?.[key] !== undefined;
+  }
+  function needsEquipment(loadout) {
+    return loadout.equipment.length < 4 || Object.keys(loadout.missingSides || {}).length > 0;
+  }
+  function fit(loadout,key) {
+    if (!canFit(loadout,key)) return false;
+    const side = loadout.missingSides[key];
+    if (side === undefined) loadout.equipment.push(key);
+    else delete loadout.missingSides[key];
+    loadout.player.fitting = {key,side,remaining:.40};
+    loadout.weapon = 1+loadout.equipment.length;
+    return true;
+  }
+  function detach(loadout,key,side) {
+    const index = loadout.equipment.indexOf(key);
+    if (index < 0 || loadout.missingSides[key] === side) return false;
+    if (side && loadout.missingSides[key] === undefined) loadout.missingSides[key] = side;
+    else {
+      loadout.equipment.splice(index,1);
+      delete loadout.missingSides[key];
+    }
+    loadout.weapon = 1+loadout.equipment.length;
+    return true;
   }
   function pose(bank, time) {
     return {rotation:Math.max(-.24, Math.min(.24, (bank || 0)*.00048)), hover:Math.sin(time*7.5)*1.5};
   }
   function mountPose(mount, side, key, player) {
     const fit = player.fitting;
-    const travel = fit?.key === key ? Math.max(0, fit.remaining / .40) ** 2 : 0;
+    const arriving = fit?.key === key && (fit.side === undefined || fit.side === side);
+    const travel = arriving ? Math.max(0, fit.remaining / .40) ** 2 : 0;
     return {x:side*(mount.x + 13*travel), y:mount.y + 10*travel};
   }
   function muzzle(player, dx, dy, frame) {
@@ -59,5 +88,10 @@ const FlightArms = (() => {
     const c = Math.cos(frame.rotation), s = Math.sin(frame.rotation);
     return {x:player.x + x*c - y*s, y:player.y + x*s + y*c};
   }
-  return {mounts, forEachMount, pose, mountPose, muzzle};
+  function housingWidth(shape) { return shape === 'pod' ? 7 : shape === 'coil' ? 6 : 4.5; }
+  function shieldBounds(pilot,player) {
+    const travel = player.fitting ? 12*Math.max(0,player.fitting.remaining/.40)**2 : 0;
+    return {rx:53+travel,ry:pilot.rotorcraft ? (pilot.id === 'grizzly' ? 73 : 62) : 61};
+  }
+  return {mounts, forEachMount, canFit, needsEquipment, fit, detach, pose, mountPose, muzzle, housingWidth, shieldBounds};
 })();

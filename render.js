@@ -218,24 +218,100 @@ function drawCongratulations() {
   ctx.restore();
 }
 
-function drawHelicopterHull(pilot,player) {
-  const {width,height} = pilot.rotorcraft;
-  const hull = imgs['plane_'+pilot.id+'_0'];
-  if (hull) ctx.drawImage(hull,-width/2,-height/2,width,height);
-  else {
-    // Keep the aircraft readable during its first image download.
-    ctx.fillStyle = pilot.id === 'libellule' ? '#625274' : '#416368';
-    ctx.fillRect(-2,2,4,height*.42);ctx.fillRect(-width*.28,-9,width*.56,8);
-    ctx.beginPath();ctx.ellipse(0,-5,width*.16,height*.35,0,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle = '#82ced9';ctx.beginPath();ctx.ellipse(0,-height*.23,width*.10,height*.10,0,0,Math.PI*2);ctx.fill();
+// Cache small transparent hulls and their illuminated silhouettes at flight resolution.
+const hullPlates = new Map();
+const plateSize = 144;
+function flightCanvas() {
+  const image = document.createElement('canvas');
+  image.width = image.height = plateSize*2;
+  return image;
+}
+function hullPlate(pilot,stage) {
+  const base = imgs['plane_'+pilot.id+'_0'];
+  if (!base) return null;
+  const upgrade = !pilot.rotorcraft && stage && imgs['plane_'+pilot.id+'_'+stage];
+  const key = pilot.id+'-'+(upgrade ? stage : 0);
+  if (hullPlates.has(key)) return hullPlates.get(key);
+  const hull=flightCanvas(), brush=hull.getContext('2d');
+  brush.setTransform(2,0,0,2,plateSize,plateSize);
+  function paint(image,w,h) {
+    const scale=Math.min(w/image.width,h/image.height);
+    const width=image.width*scale,height=image.height*scale;
+    brush.drawImage(image,-width/2,-height/2,width,height);
   }
-  if (player.muzzleFlash > .035) {
-    const light = pilot.id === 'libellule', x = light ? (player.pulseSide || 1)*12 : 0;
-    ctx.drawImage(Scenery.flare(pilot.color),x-4,light ? -29 : -45,8,11);
+  paint(base,pilot.rotorcraft?.width || 78,pilot.rotorcraft?.height || 94);
+  if (upgrade) {
+    // Keep the painted fuselage upgrades; every detachable wing station is drawn separately.
+    brush.save();
+    brush.beginPath();brush.moveTo(-3,-57);brush.lineTo(-8,-23);brush.lineTo(-10,29);
+    brush.lineTo(-9,52);brush.lineTo(9,52);brush.lineTo(10,29);brush.lineTo(8,-23);
+    brush.lineTo(3,-57);brush.closePath();brush.clip();
+    paint(upgrade,78+stage*4,94+stage*5);
+    brush.restore();
   }
+  const plate = {hull,charge:null};
+  hullPlates.set(key,plate);
+  return plate;
+}
+function chargedHull(plate) {
+  if (plate.charge) return plate.charge;
+  const mask=flightCanvas(), brush=mask.getContext('2d');
+  brush.drawImage(plate.hull,0,0);
+  brush.globalCompositeOperation='source-in';
+  const light=brush.createLinearGradient(54,24,234,258);
+  light.addColorStop(0,'#eefeff');light.addColorStop(.42,'#54f6ff');light.addColorStop(1,'#579dff');
+  brush.fillStyle=light;brush.fillRect(0,0,mask.width,mask.height);
+  const aura=flightCanvas(), rim=aura.getContext('2d');
+  rim.shadowColor='#35dcff';rim.shadowBlur=14;rim.drawImage(mask,0,0);
+  rim.shadowBlur=0;
+  for (const [x,y] of [[-3,0],[3,0],[0,-3],[0,3]]) rim.drawImage(mask,x,y);
+  rim.globalCompositeOperation='destination-out';rim.drawImage(plate.hull,0,0);
+  rim.globalCompositeOperation='source-over';rim.globalAlpha=.40;rim.drawImage(mask,0,0);
+  plate.charge=aura;
+  return aura;
 }
 
-function drawRotors(pilot) {
+function drawShieldSurface(pilot,player,front) {
+  const {rx,ry}=FlightArms.shieldBounds(pilot,player), calm=reducedEffects();
+  const pulse=calm ? .85 : .82+.13*Math.sin(S.levelTime*3.8);
+  const strength=pulse*Math.min(1,.36+player.shield/.85);
+  ctx.save();
+  if (!front) {
+    ctx.scale(rx,ry);
+    const membrane=ctx.createRadialGradient(0,-.12,.12,0,0,1);
+    membrane.addColorStop(0,'#5af1ff14');membrane.addColorStop(.72,'#4cbaff0b');
+    membrane.addColorStop(.93,'#68eaff4d');membrane.addColorStop(1,'#69f2ff15');
+    ctx.globalAlpha=strength;ctx.fillStyle=membrane;
+    ctx.beginPath();ctx.arc(0,0,1,0,Math.PI*2);ctx.fill();
+  } else {
+    ctx.globalAlpha=strength;ctx.strokeStyle='#68e7ff';ctx.lineWidth=1.6;
+    ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,Math.PI*2);ctx.stroke();
+    ctx.strokeStyle='#c1ffff';ctx.lineWidth=2.6;
+    const angle=calm ? -.72 : S.levelTime*.84;
+    for (let i=0;i<3;i++) {
+      const a=angle+i*Math.PI*2/3;
+      ctx.beginPath();ctx.ellipse(0,0,rx-2,ry-2,0,a,a+.43);ctx.stroke();
+    }
+    if (player.shieldImpact > 0) {
+      const life=player.shieldImpact/.36;
+      const a=player.shieldAngle-FlightArms.pose(S.bank,S.levelTime).rotation;
+      const spread=.21+(1-life)*.95;
+      ctx.globalAlpha=life*(calm ? .57 : .95);ctx.strokeStyle='#e2ffff';ctx.lineWidth=2+life*2;
+      ctx.beginPath();ctx.ellipse(0,0,rx-2,ry-2,0,a-spread,a+spread);ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function drawHelicopterFallback(pilot) {
+  const {width,height} = pilot.rotorcraft;
+  ctx.fillStyle = pilot.id === 'libellule' ? '#625274' : '#416368';
+  ctx.fillRect(-2,2,4,height*.42);ctx.fillRect(-width*.28,-9,width*.56,8);
+  ctx.beginPath();ctx.ellipse(0,-5,width*.16,height*.35,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle = '#82ced9';ctx.beginPath();ctx.ellipse(0,-height*.23,width*.10,height*.10,0,0,Math.PI*2);ctx.fill();
+}
+
+function drawRotors(pilot,shielded) {
   const {height,rotors} = pilot.rotorcraft;
   for (const rotor of rotors) {
     const {radius,blades,rate} = rotor, small = radius < 15;
@@ -251,31 +327,26 @@ function drawRotors(pilot) {
       ctx.fillStyle = 'rgba(27,42,52,.71)';
       ctx.beginPath();ctx.moveTo(2,-1);ctx.lineTo(radius*.60,-2);
       ctx.lineTo(radius,small ? -.8 : -2.8);ctx.lineTo(radius-.7,1);ctx.lineTo(3,1.6);ctx.closePath();ctx.fill();
-      ctx.strokeStyle = 'rgba(218,234,240,.64)';ctx.lineWidth = small ? .55 : 1.05;
+      ctx.strokeStyle = shielded ? '#a6f7ff' : 'rgba(218,234,240,.64)';ctx.lineWidth = small ? .55 : 1.05;
       ctx.beginPath();ctx.moveTo(4,-.8);ctx.lineTo(radius,-1.9);ctx.stroke();
-      if (!small) { ctx.fillStyle=pilot.color;ctx.fillRect(radius-5,-1.9,3,1.8); }
+      if (!small) { ctx.fillStyle=shielded ? '#c7ffff' : pilot.color;ctx.fillRect(radius-5,-1.9,3,1.8); }
     }
     ctx.fillStyle='#d0e0e0';ctx.beginPath();ctx.arc(0,0,small ? 1.4 : 2.6,0,Math.PI*2);ctx.fill();
     ctx.restore();
   }
 }
 
-function drawMountedWeapons(pilot,player) {
-  const colors = {blue:'#91afbd',green:'#8d9f78',red:'#bf8176',gold:'#c6ad74',libellule:'#ad91c4',grizzly:'#90a8a9'};
-  FlightArms.forEachMount(pilot.id,S.equipment,(mount,side,key) => {
-    const socket = FlightArms.mountPose(mount,side,key,player);
-    ctx.save();
-    ctx.translate(socket.x,socket.y);
-    if (side < 0) ctx.scale(-1,1);
+const mountMetals = {blue:'#91afbd',green:'#8d9f78',red:'#bf8176',gold:'#c6ad74',libellule:'#ad91c4',grizzly:'#90a8a9'};
+function drawMount(pilot,mount,side,attached,shielded,firing) {
     const fin = mount.shape === 'fin', pod = mount.shape === 'pod', coil = mount.shape === 'coil';
-    const width = pod ? 7 : coil ? 6 : 4.5;
+    const width = FlightArms.housingWidth(mount.shape);
     // A steel pylon bridges the fuselage and each outboard housing.
-    if (side) {
+    if (side && attached) {
       ctx.fillStyle = '#233241'; ctx.fillRect(-10,1,11,5);
-      ctx.fillStyle = colors[pilot.id]; ctx.fillRect(-10,1,10,1.5);
+      ctx.fillStyle = mountMetals[pilot.id]; ctx.fillRect(-10,1,10,1.5);
     }
-    ctx.strokeStyle = '#15242f';ctx.lineWidth = 2;
-    ctx.fillStyle = colors[pilot.id];
+    ctx.strokeStyle = shielded ? '#a4f8ff' : '#15242f';ctx.lineWidth = 2;
+    ctx.fillStyle = mountMetals[pilot.id];
     ctx.beginPath();ctx.moveTo(-width,-5);ctx.lineTo(-width*.6,-11);ctx.lineTo(width*.55,-11);
     ctx.lineTo(fin ? width+4 : width,-2);ctx.lineTo(width,8);ctx.lineTo(-width*.7,10);ctx.closePath();ctx.fill();ctx.stroke();
     ctx.fillStyle = '#dae5e7';ctx.fillRect(-width*.62,-9,1.5,12);
@@ -285,10 +356,38 @@ function drawMountedWeapons(pilot,player) {
     ctx.fillStyle = pilot.color;
     if (coil) { for (let y=-6;y<=4;y+=4) ctx.fillRect(-4,y,8,1.8); }
     else ctx.fillRect(-2.5,3,5,2.5);
-    if (player.muzzleFlash > .035) {
+    if (firing) {
       ctx.globalAlpha = reducedEffects() ? .5 : .82;
       ctx.drawImage(Scenery.flare(pilot.color),-4.5,-18,9,11);
     }
+}
+function drawMountedWeapons(pilot,player) {
+  FlightArms.forEachMount(pilot.id,S,(mount,side,key) => {
+    const socket=FlightArms.mountPose(mount,side,key,player);
+    ctx.save();ctx.translate(socket.x,socket.y);
+    if (side < 0) ctx.scale(-1,1);
+    drawMount(pilot,mount,side,true,player.shield>0,player.muzzleFlash>.035);
     ctx.restore();
   });
+}
+
+function drawMountWreck(wreck,life) {
+  const t=wreck.maxLife-wreck.life;
+  const x=wreck.x+wreck.vx*t, y=wreck.y+wreck.vy*t+170*t*t;
+  const pilot=SHIPS.find(p=>p.id===wreck.pilot);
+  ctx.save();
+  const sparks=reducedEffects() ? 3 : 6;
+  for (let i=0;i<sparks;i++) {
+    const delay=(i+1)*.035;
+    if (delay>t) continue;
+    const age=t-delay, r=1.8+i*.55;
+    ctx.globalAlpha=life*(1-i/(sparks+1))*.68;
+    ctx.fillStyle=i<2?'#ffb654':'#897c70';
+    ctx.beginPath();ctx.arc(wreck.x+wreck.vx*age+Math.sin(age*13+i)*2,wreck.y+wreck.vy*age+170*age*age,r,0,Math.PI*2);ctx.fill();
+  }
+  ctx.translate(x,y);ctx.rotate(wreck.rotation+wreck.spin*t);
+  if (wreck.side<0) ctx.scale(-1,1);
+  ctx.globalAlpha=Math.min(1,life*3);
+  drawMount(pilot,FlightArms.mounts[pilot.id][wreck.key],wreck.side,false,false,false);
+  ctx.fillStyle='#ffb65f';ctx.fillRect(-2,5,4,2);ctx.restore();
 }

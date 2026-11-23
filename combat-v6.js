@@ -116,6 +116,8 @@ function createCombatV6({
   let impactSoundWait = 0;
   let hitPlayerX;
   let hitPlayerY;
+  let contactStartX;
+  let contactStartY;
   let playerVx = 0;
   let playerVy = 0;
 
@@ -128,8 +130,8 @@ function createCombatV6({
     attack = null;
     soundWait = impactSoundWait = 0;
     playerVx = playerVy = 0;
-    hitPlayerX = S.player?.x;
-    hitPlayerY = S.player?.y;
+    hitPlayerX = contactStartX = S.player?.x;
+    hitPlayerY = contactStartY = S.player?.y;
     warningQueue.length = trails.length = impacts.length = 0;
   }
 
@@ -523,12 +525,12 @@ function createCombatV6({
         S.enemies.splice(i, 1);
         continue;
       }
-      const playerR = p.shield > 0 ? 33 : ship().hitbox;
-      if (!p.dead && Number.isFinite(ellipseContact(x, y, o.x, o.y, p,
-          o.rx * .65 + playerR, o.ry * .69 + playerR))) {
+      const contact = playerContact(x,y,o.x,o.y,o.rx*.65,o.ry*.69);
+      if (contact) {
         S.enemies.splice(i, 1);
         killEnemy(o);
-        hitPlayer(o.x, o.y);
+        hitPlayer(contact.x,contact.y,contact.mount);
+        if (!S.running || p.dead) break;
       }
     }
     updateLinks();
@@ -559,6 +561,46 @@ function createCombatV6({
     if (d < 0) return Infinity;
     const t = (-b - Math.sqrt(d)) / a;
     return t >= 0 && t <= 1 ? t : Infinity;
+  }
+
+  function playerContact(x1,y1,x2,y2,rx,ry) {
+    const p = S.player;
+    if (!p || p.dead) return null;
+    // Sweep in the moving aircraft's frame, including a sideways drag between updates.
+    const ax = x1-(contactStartX ?? p.x), ay = y1-(contactStartY ?? p.y);
+    const bx = x2-p.x, by = y2-p.y;
+    const reach = 80;
+    if (Math.min(ax,bx)>reach+rx || Math.max(ax,bx)<-reach-rx ||
+        Math.min(ay,by)>reach+ry || Math.max(ay,by)<-reach-ry) return null;
+    const pilot = ship(), frame = FlightArms.pose(S.bank,S.levelTime);
+    const cos = Math.cos(frame.rotation), sin = Math.sin(frame.rotation);
+    const sx = ax*cos+ay*sin, sy = ay*cos-ax*sin;
+    const ex = bx*cos+by*sin, ey = by*cos-bx*sin;
+    const padX = rx===ry ? rx : Math.hypot(rx*cos,ry*sin);
+    const padY = rx===ry ? ry : Math.hypot(rx*sin,ry*cos);
+    const body = {x:0,y:0};
+    let first, mount = null;
+    if (p.shield > 0) {
+      const field = FlightArms.shieldBounds(pilot,p);
+      first = ellipseContact(sx,sy,ex,ey,body,field.rx+padX,field.ry+padY);
+    } else {
+      first = ellipseContact(sx,sy,ex,ey,body,pilot.hitbox+padX,pilot.hitbox+padY);
+      FlightArms.forEachMount(pilot.id,S,(station,side,key) => {
+        const socket = FlightArms.mountPose(station,side,key,p);
+        const fin = station.shape === 'fin' ? 2 : 0;
+        const housing = {x:socket.x+side*fin,y:socket.y+frame.hover-2};
+        let t = ellipseContact(sx,sy,ex,ey,housing,FlightArms.housingWidth(station.shape)+fin+padX,13+padY);
+        if (side) {
+          const pylon = {x:socket.x-side*5,y:socket.y+frame.hover+3};
+          t = Math.min(t,ellipseContact(sx,sy,ex,ey,pylon,5.5+padX,2.8+padY));
+        }
+        if (t < first) {
+          first = t;
+          mount = {key,side,...FlightArms.muzzle(p,socket.x,socket.y,frame),rotation:frame.rotation};
+        }
+      });
+    }
+    return Number.isFinite(first) ? {x:x1+(x2-x1)*first,y:y1+(y2-y1)*first,mount} : null;
   }
 
   function marked(statsOwner) {
@@ -612,7 +654,7 @@ function createCombatV6({
     target.dead = true;
     if (target.targetType === 'enemy') {
       killEnemy(target);
-      if (target.role === 'support' && S.equipment.length < 4) spawnDrop('weapon', target.x, target.y);
+      if (target.role === 'support' && FlightArms.needsEquipment(S)) spawnDrop('weapon', target.x, target.y);
       const i = S.enemies.indexOf(target);
       if (i >= 0) S.enemies.splice(i, 1);
     } else {
@@ -665,7 +707,7 @@ function createCombatV6({
     const corePierces = sh.id==='green' && equipment.includes('u2');
     addPlayerBullet(p,0,0,stock[0],stock[1],stock[2],{...axial,splash:sh.id === 'grizzly' ? 48 : 0,
       piercing:corePierces,remaining:corePierces ? (equipment.includes('u4') ? 3 : 2) : 1});
-    FlightArms.forEachMount(sh.id,equipment,(mount,side,key) => {
+    FlightArms.forEachMount(sh.id,S,(mount,side,key) => {
       const socket = FlightArms.mountPose(mount,side,key,p);
       const tip = FlightArms.muzzle(p,socket.x,socket.y-12,frame);
       const piercing = sh.id === 'green' && (key === 'u2' || key === 'u4');
@@ -823,11 +865,11 @@ function createCombatV6({
         S.eBullets.splice(i, 1);
         continue;
       }
-      const radius = (p.shield > 0 ? 35 : ship().hitbox) + b.size * .42;
-      const contact = p.dead ? Infinity : ellipseContact(x, y, b.x, b.y, p, radius, radius);
-      if (Number.isFinite(contact)) {
+      const radius = b.size*.42;
+      const contact = playerContact(x,y,b.x,b.y,radius,radius);
+      if (contact) {
         S.eBullets.splice(i, 1);
-        hitPlayer(x + (b.x - x) * contact, y + (b.y - y) * contact);
+        hitPlayer(contact.x,contact.y,contact.mount);
         if (!S.running || p.dead) return;
       }
     }
@@ -1032,6 +1074,8 @@ function createCombatV6({
       attack = null;
       trails.length = impacts.length = 0;
     }
+    contactStartX = S.player.x;
+    contactStartY = S.player.y;
   }
 
   function ring(x, y, rx, ry) {
@@ -1350,6 +1394,6 @@ function createCombatV6({
     ctx.restore();
   }
 
-  return {reset, addEnemy, spawnHostile, updateActors, firePlayer, special, updateProjectiles,
+  return {reset, addEnemy, spawnHostile, updateActors, firePlayer, special, updateProjectiles, playerContact,
     drawGround, drawEnemies, drawPlayerShots, drawHostileShots, drawSpecial, drawForeground};
 }
