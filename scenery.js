@@ -10,7 +10,8 @@ const Scenery = (() => {
     {water:'#86f4ea', cloud:.24, peaks:[[54,213],[459,441],[57,651],[470,792]], lights:[[452,144],[70,318],[478,662]]},
     {water:'#83ffe1', cloud:.23, peaks:[[57,232],[481,408],[70,660]], lights:[[451,282],[488,574],[87,762]]},
     {water:'#92e4fa', cloud:.25, ash:true, fires:[[56,209],[468,273],[63,467],[477,609],[53,773],[481,804]]},
-    {water:'#68abde', cloud:.24, night:true, lights:[[89,152],[474,296],[66,455],[482,590],[69,741],[459,796]]}
+    {water:'#68abde', cloud:.24, night:true, lights:[[89,152],[474,296],[66,455],[482,590],[69,741],[459,796]]},
+    ...FRONT_MISSIONS.map(mission => mission.terrain)
   ];
   const sprites = new Map();
   let level = 0;
@@ -91,13 +92,19 @@ const Scenery = (() => {
     }));
   }
 
+  function terrainPeriod() { return level >= 8 ? H : H-BLEND_HEIGHT; }
+
   function getTerrain() {
     const original = imgs['bg'+level];
     if (!original || terrainSource === original) return terrainTile;
     terrainSource = original;
     terrainArt = canvasSprite(W,H);
     terrainArt.getContext('2d').drawImage(original,0,0,W,H);
-    const period = H-BLEND_HEIGHT;
+    if (level >= 8) {
+      terrainTile = terrainArt;
+      return terrainTile;
+    }
+    const period = terrainPeriod();
     const incoming = canvasSprite(W,BLEND_HEIGHT);
     const feather = incoming.getContext('2d');
     feather.drawImage(terrainArt,0,0);
@@ -120,7 +127,7 @@ const Scenery = (() => {
   }
 
   function eachTerrainRow(callback) {
-    const period = H-BLEND_HEIGHT;
+    const period = terrainPeriod();
     const shift = modulo(S.bgY,period);
     for (let y=shift-period*2; y<H+8; y+=period) {
       if (y+period < -8) continue;
@@ -217,7 +224,7 @@ const Scenery = (() => {
     if (terrain) eachTerrainRow((y,height) => ctx.drawImage(terrain,-8,y,W+16,height+.65));
     ctx.fillStyle = profile.night ? '#0618312e' : '#102c411f';
     ctx.fillRect(-8,-8,W+16,H+16);
-    animateWater(quality);
+    if (profile.water) animateWater(quality);
     paintLand(quality);
     drawClouds(true,quality);
     ctx.restore();
@@ -228,16 +235,26 @@ const Scenery = (() => {
     const t = S.levelTime;
     ctx.save();
     drawClouds(false,quality);
-    if (profile.snow || profile.ash || profile.night) {
+    if (profile.snow || profile.ash || profile.night || profile.leaves || profile.sand) {
       const count = [12,24,46][quality];
-      ctx.fillStyle = profile.snow ? '#e4f4ff' : profile.ash ? '#ffc495' : '#aedbfc';
+      ctx.fillStyle = profile.snow ? '#e4f4ff' : profile.ash ? '#ffc495' : profile.leaves ? '#d38748' : profile.sand ? '#e6b77b' : '#aedbfc';
       ctx.globalAlpha = reducedEffects() ? .26 : .46;
       for (let i=0; i<count; i++) {
         const p = atmosphere[i];
         const x = modulo(p.x+Math.sin(t*.55+i)*22+t*(profile.snow ? 19 : 6),W);
         const y = modulo(p.y+t*p.speed*(profile.ash ? -.6 : 1)+S.bgY*.32,H);
-        ctx.fillRect(x,y,p.size,profile.ash ? p.size*1.4 : p.size*1.9);
+        if (profile.sand) {
+          const drift = modulo(x+t*(profile.storm?96:34),W);
+          ctx.fillRect(drift,y,p.size*(profile.storm?4:2),1.25);
+        } else if (profile.leaves) {
+          ctx.save();ctx.translate(x,y);ctx.rotate(t*.9+i);ctx.fillRect(-2,-1,p.size*2,p.size);ctx.restore();
+        } else ctx.fillRect(x,y,p.size,profile.ash ? p.size*1.4 : p.size*1.9);
       }
+    }
+    if (profile.aurora && quality > 0) {
+      ctx.globalAlpha = reducedEffects() ? .08 : .14;
+      ctx.strokeStyle = '#75efbf';ctx.lineWidth = 9;
+      ctx.beginPath();ctx.moveTo(-15,220);ctx.bezierCurveTo(120,106+Math.sin(t*.4)*37,230,180,340,42);ctx.stroke();
     }
     if (profile.ash) {
       const texture = vapor(true);
@@ -252,5 +269,5 @@ const Scenery = (() => {
     ctx.restore();
   }
 
-  return {reset, drawGround, drawAir, flare, terrainPeriod:()=>H-BLEND_HEIGHT};
+  return {reset, drawGround, drawAir, flare, terrainPeriod};
 })();

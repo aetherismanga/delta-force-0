@@ -193,3 +193,20 @@ body:has(#app:fullscreen) #app{width:100vw;height:100dvh}
   .bars{top:46px}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important}}
+
+/* Playable mission cards use the terrain pilots will fly over. */
+.campaignMap.playableFront {
+  display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px;
+  height:auto; min-height:0; padding:12px; align-content:start; background:#102335;
+}
+.playableFront .campaignPath,.playableFront .chapterDivider { display:none; }
+.playableFront .chapterTag { position:static; grid-column:1/-1; justify-self:start; transform:none; margin:4px 0 1px; }
+.playableFront .chapterTag:nth-of-type(4) { grid-row:4; }
+.playableFront .levelNode { position:relative; inset:auto !important; width:auto; min-height:82px; border-radius:11px; padding:8px; background-image:linear-gradient(90deg,#071622e8,#07162299 68%,#07162262),var(--terrain); background-size:cover; background-position:center; }
+.playableFront .levelNode .nm { font-size:clamp(11px,3vw,14px); }
+.playableFront .levelNode .st { margin-top:4px; }
+.playableFront .levelNode.locked { opacity:.79; }
+.playableFront .levelNode.locked::after { content:none; }
+#bossModules { font-size:clamp(10px,2.15vw,13px); }
+#progressVisualPage.hidden { display:none; }
+#progressFuturePage { flex:none; width:min(calc(100% - 16px),510px); }

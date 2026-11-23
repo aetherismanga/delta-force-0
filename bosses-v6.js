@@ -72,7 +72,8 @@ const BossV6 = (() => {
         part('engine', 'Salle des machines', 'engine', .50, .875, .076, .055, 62),
         part('catapult-l', 'Catapulte bâbord', 'catapult', .285, .452, .084, .077, 72),
         part('catapult-r', 'Catapulte tribord', 'catapult', .715, .452, .084, .077, 72),
-        part('radar', 'Radar de la passerelle', 'radar', .50, .155, .084, .064, 65)
+        part('radar', 'Radar de la passerelle', 'radar', .50, .155, .084, .064, 65),
+        part('deck-armor', 'Plaque du pont', 'armor', .50, .575, .105, .047, 60)
       ],
       attacks: [attack('split', 'bolt', 6, .20, 215), attack('wave', 'ion', 6, .22, 225), attack('cross', 'plasma', 6, .22, 244)],
       wreck: { time: 5.8, mode: 'sink', color: '#ffc28d', events: [[.12, 'cannon'], [.32, 'missile'], [.54, 'catapult-l'], [.72, 'triple'], [.96, 'rotary'], [1.16, 'catapult-r'], [1.36, 'hangar', 1.4], [1.63, 'radar'], [1.96, 'engine'], [2.66, 'core', 2.9], [3.54, 'hangar', 1.25]] }
@@ -89,7 +90,8 @@ const BossV6 = (() => {
         part('rockets-r', 'Nacelle de roquettes tribord', 'missile', .889, .742, .067, .068, 50, 'missile'),
         part('gun', 'Canon axial', 'gun', .50, .867, .066, .052, 54, 'salvo'),
         part('gyro', 'Gyroscope du rotor', 'gyro', .50, .413, .054, .057, 73),
-        part('magazine', 'Soute à roquettes', 'magazine', .50, .215, .079, .062, 75)
+        part('magazine', 'Soute à roquettes', 'magazine', .50, .215, .079, .062, 75),
+        part('gyro-armor', 'Capot de blindage', 'armor', .50, .545, .10, .048, 65)
       ],
       attacks: [attack('wheel', 'bolt', 6, .22, 233), attack('aim', 'missile', 4, .22, 198), attack('sweep', 'flame', 6, .24, 256)],
       wreck: { time: 5.55, mode: 'spin', color: '#ffdb83', events: [[.11, 'rockets-r'], [.36, 'gun'], [.59, 'magazine', 1.4], [.82, 'rockets-l'], [1.01, 'rotor-l'], [1.30, 'gyro'], [1.63, 'rotor-r'], [2.24, 'core', 2.65], [2.99, 'rotor-r', 1.4]] }
@@ -153,6 +155,34 @@ const BossV6 = (() => {
     }
   ];
 
+  for (const [index,mission] of FRONT_MISSIONS.entries()) {
+    const d = mission.boss;
+    const plating = 64 + index*5;
+    const left = part('guard-l', d.guardName+' gauche', d.guard, .22,.62,.083,.072,plating);
+    const right = part('guard-r', d.guardName+' droit', d.guard, .78,.62,.083,.072,plating);
+    const speed = 226 + index*5;
+    const parts = [left,right,
+      part('weapon-l','Batterie gauche',d.guns[0]==='missile'?'missile':'gun',.29,.32,.080,.071,plating-9,d.guns[0]),
+      part('weapon-r','Batterie droite',d.guns[1]==='missile'?'missile':'gun',.71,.32,.080,.071,plating-9,d.guns[1]),
+      part('hangar','Baie de renforts','hangar',.50,.76,.096,.072,plating+8),
+      part('engine','Moteur de manœuvre','engine',.50,.24,.074,.061,plating-6)
+    ];
+    const opening = d.guard==='shield' ? 'les deux projecteurs' : 'les deux blindages';
+    const last = index === FRONT_MISSIONS.length-1;
+    ENCOUNTERS.push({
+      name:d.name,width:d.w,height:d.h,anchor:275,hp:1600+index*81,hue:d.hue,
+      phase:[.78,.52,.27], stages:['Défenses extérieures entamées','Seconde formation','Noyau en surcharge'],
+      intro:`Vise ${opening} sur les flancs. La baie arrière commande les renforts.`,
+      core:[.50,.45,.105,.105],motion:d.motion,parts,support:d.escorts,guarded:true,
+      attacks:d.patterns.map((mode,i)=>attack(mode,i===1?'ion':d.ammo,4+i+Math.floor(index/4),.22,speed+i*8,.68-i*.04)),
+      finalAttacks:last ? [attack('split','plasma',8,.20,269,.73),attack('wheel','ion',9,.19,278,.72),attack('sweep','flame',7,.21,290,.69)] : null,
+      wreck:{time:5.6+index*.14,mode:d.wreck,color:d.hue,events:[
+        [.15,'weapon-l'],[.45,'guard-r'],[.74,'engine'],[1.13,'weapon-r'],[1.49,'guard-l'],[1.85,'hangar'],
+        [2.42+index*.055,'core',2.45+index*.1],[3.24+index*.085,'core',1.18]
+      ]}
+    });
+  }
+
   const FRAMES = [
     [[9,9,303,427], [12,15,298,476], [15,11,293,479], [9,9,304,485]],
     [[8,9,304,1004], [8,9,310,1004], [8,9,297,1004], [9,9,297,1002]],
@@ -210,7 +240,7 @@ const BossV6 = (() => {
       level, data, x: W / 2, y: -data.height / 2 - 32, w: data.width, h: data.height,
       hp: data.hp, maxHp: data.hp, integrity: 1, phase: 1, angle: 0,
       t: 0, moveTime: 0, entry: true, entryTime: 0,
-      shoot: 1.2, attackIndex: 0, summon: 6.4, smoke: 0, flash: 0,
+      shoot: 1.2, attackIndex: 0, summon: 5.25, relayWarning: 0, sorties: 0, supplySent: false, smoke: 0, flash: 0,
       transformed: false, morph: 0, pending: [], particles: [], debris: [],
       bodyCache: null, hudState: '', core: { id: `boss-${level}-core`, kind: 'bossCore', hp: data.hp, maxHp: data.hp }
     };
@@ -288,6 +318,11 @@ const BossV6 = (() => {
   function tacticalObjective(b, shields) {
     if (b.entry) return '';
     if (b.morph > 0) return 'Transformation en cours';
+    if (b.data.guarded) {
+      const guards = count(b,'armor','shield');
+      if (guards) return `Noyau verrouillé · ${guards} protection${guards>1?'s':''} sur les flancs`;
+      return count(b,'hangar') ? 'Noyau ouvert · la baie arrière appelle les renforts' : 'Renforts coupés · vise le noyau';
+    }
     if (shields && b.level === 5) return 'Condensateur derrière le blindage du pont';
     if (shields) return 'Projecteurs à neutraliser';
     const [kind, hint] = TACTICAL_TARGETS[b.level];
@@ -320,6 +355,11 @@ const BossV6 = (() => {
     if (target === b.core) {
       const shields = activeShields(b);
       const armor = count(b, 'armor');
+      if (b.data.guarded && (armor || shields)) {
+        if (b.flash <= 0) { impact(b,x,y,'#92ecff',.62); sfx('shieldHit'); }
+        b.flash = .12;
+        return true;
+      }
       const defense = shields ? (pierce ? .52 : .24) : armor ? (pierce ? .90 : .65) : 1;
       const weakSpot = 1 + (b.phase - 1) * .10;
       const hullFloor = shields || armor ? b.maxHp * .16 : 0;
@@ -354,11 +394,11 @@ const BossV6 = (() => {
       sfx('boss');
       const exposed = localPoint(b, .50, b.phase === 2 ? .57 : .47);
       burst(b, exposed.x, exposed.y, b.phase === 4 ? 1.4 : 1.05, b.data.hue);
-      if (b.level === 7 && b.phase === 3) {
+      if (b.data.finalAttacks && b.phase === 3) {
         b.transformed = true;
         b.morph = 1.38;
         S.eBullets.length = 0;
-        banner('NIGHTFALL Ω — FORME ZÉRO', 2.7);
+        banner(b.level===7 ? 'NIGHTFALL Ω — FORME ZÉRO' : 'RÂ — ÉCLIPSE TOTALE', 2.7);
         pulseCamera(.22, .11);
       }
     }
@@ -428,7 +468,8 @@ const BossV6 = (() => {
   }
 
   function prepare(b, source, data, p) {
-    const aimed = clamp(Math.atan2(p.y - source.y, p.x - source.x), .45, Math.PI - .45);
+    const lead = b.data.guarded && !systemLost(b,'engine') ? clamp((S.bank||0)*.16,-48,48) : 0;
+    const aimed = clamp(Math.atan2(p.y - source.y, p.x+lead - source.x), .45, Math.PI - .45);
     const aim = systemLost(b, 'radar') ? mix(DOWN, aimed, .31) : aimed;
     const index = b.attackIndex;
     const countBoost = source === b.core && b.phase >= 3 && data.count < 7 && b.level >= 3 ? 1 : 0;
@@ -502,14 +543,26 @@ const BossV6 = (() => {
       prepare(b, n, GUNS[weapon], p);
       n.shoot = (b.level <= 2 ? 3.8 : 3.35) + (n.index % 3) * .22 + (weapon === 'missile' ? .45 : 0);
     }
+    const bay = b.partsById.hangar;
+    if (bay?.dead) { b.relayWarning = 0; return; }
     b.summon -= dt;
-    if (b.summon > 0 || b.level === 3 && !count(b, 'hangar')) return;
-    b.summon = Math.max(7.8, 12.4 - b.phase * .9 - b.level * .21);
-    if (S.enemies.length >= 3) return;
-    for (const [i, role] of b.data.support.entries()) {
-      if (b.level === 3 && systemLost(b, i ? 'catapult-r' : 'catapult-l')) continue;
-      const x = clamp(b.x + (i ? 135 : -135), 49, W - 49);
-      combat.addEnemy(role, { x, y: -70 - i * 62, lane: x });
+    if (b.summon > 0 || S.enemies.length >= 3) return;
+    if (!b.relayWarning) {
+      b.relayWarning = 1.15;
+      showMsg('Renforts en approche',1.05);
+      return;
+    }
+    b.relayWarning -= dt;
+    if (b.relayWarning > 0) return;
+    b.relayWarning = 0;
+    b.summon = Math.max(7.5,12.4-b.phase*.9-b.level*.21);
+    const group = -1 - b.sorties++;
+    for (const [i,role] of b.data.support.entries()) {
+      if (b.level===3 && systemLost(b,i?'catapult-r':'catapult-l')) continue;
+      const side = (i+b.sorties)%2 ? -1 : 1;
+      const x = clamp(b.x+side*(88+i*20),55,W-55);
+      const flank = b.data.guarded && i<2 && b.phase>=2;
+      combat.addEnemy(role,{x,y:flank ? 100+i*50 : -55-i*38,entry:flank ? (side<0?'left':'right') : 'top',slot:i,group});
     }
   }
 
@@ -660,7 +713,12 @@ const BossV6 = (() => {
     pulseCamera(combatReward ? .15 : .10, combatReward ? .035 : 0);
     if (!combatReward) return;
     S.score += 350 + 55 * b.level;
-    sfx('explode');
+    const protection = n.kind === 'armor' || n.kind === 'shield';
+    sfx(protection ? 'armorBreak' : 'explode');
+    if (protection && !b.supplySent && S.player && !S.player.dead) {
+      b.supplySent = true;
+      spawnDrop(S.player.hp < S.player.maxHp ? 'shield' : 'weapon',n.x,n.y);
+    }
     const note = NODE_MESSAGES[n.kind];
     showMsg(note ? `${n.definition.label} · ${note}` : `${n.definition.label} hors service`, 1.8);
   }
@@ -691,7 +749,7 @@ const BossV6 = (() => {
     if (tactical) tactical.textContent = '';
     $('levelBanner').classList.remove('show');
     stopMusic();
-    sfx('explode');
+    sfx('hullBreak');
     showMsg('BOSS NEUTRALISÉ', 1.55);
   }
 
@@ -720,7 +778,8 @@ const BossV6 = (() => {
       if (alive(node)) detach(b, node);
       else burst(b, location.x, location.y, power, wreck.color);
       if (id === 'core' && power >= 2) coreRupture(b, power);
-      if (b.deathEvent % 2 === 1 || power >= 2) sfx('explode');
+      if (id === 'core' && power >= 2) sfx('reactorBreak');
+      else if (b.deathEvent % 2 === 1) sfx('explode');
     }
     if (t < wreck.time) return true;
     S.bossDeath = null;
@@ -779,6 +838,10 @@ const BossV6 = (() => {
   }
 
   function spriteFrame(b) {
+    if (b.data.guarded) {
+      const id = 'frontBoss'+b.level;
+      return {id:id+'-'+b.phase, image:imgs[id], rect:[0,0,448,512]};
+    }
     let stage = Math.min(FRAMES[b.level].length - 1, b.phase - 1);
     let id;
     if (b.level < 3) {
@@ -956,7 +1019,23 @@ const BossV6 = (() => {
 
   function drawCore(b) {
     const n = b.core;
-    const shields = activeShields(b);
+    ctx.save();
+    for (const node of b.nodes) {
+      if (node.dead || !['armor','shield'].includes(node.kind)) continue;
+      if (node.kind === 'shield' && !activeShields(b)) continue;
+      ctx.strokeStyle = node.kind === 'shield' ? '#66e4ff80' : '#f5bc6680';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5,7]);
+      ctx.lineDashOffset = reducedEffects() ? 0 : -b.t*18;
+      ctx.beginPath();ctx.moveTo(node.x,node.y);ctx.lineTo(n.x,n.y);ctx.stroke();
+    }
+    if (b.relayWarning > 0) {
+      const bay = b.partsById.hangar || b.core;
+      ctx.setLineDash([]);ctx.strokeStyle = '#ffcb78';ctx.lineWidth = 2;
+      ctx.beginPath();ctx.arc(bay.x,bay.y,21+(1.15-b.relayWarning)*22,0,TAU);ctx.stroke();
+    }
+    ctx.restore();
+    const shields = activeShields(b) || (b.data.guarded ? count(b,'armor') : 0);
     const color = shields ? '#7de2ff' : b.phase >= 3 ? '#ffe1a2' : b.data.hue;
     const halo = shields ? 1.4 : 1;
     ctx.save();

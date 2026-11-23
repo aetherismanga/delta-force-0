@@ -4,7 +4,7 @@ const { runInNewContext } = require('node:vm');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const code = readFileSync(join(__dirname, '..', 'combat-v6.js'), 'utf8');
+const code = ['campaign.js','airframes.js','combat-v6.js'].map(file => readFileSync(join(__dirname,'..',file),'utf8')).join('\n');
 const createCombat = runInNewContext(code + '\ncreateCombatV6');
 const configs = {
   blue: {id:'blue', fire:.145, damageMul:1, hitbox:13},
@@ -19,7 +19,7 @@ function setup({level = 0, ship = 'blue', targets = [], afterPlayerHit, afterBos
   const messages = [];
   const waveTimes = [];
   const drops = [];
-  const terrain = Array.from({length:8}, (_, i) => ({scroll:78 + i * 6}));
+  const terrain = Array.from({length:16}, (_, i) => ({scroll:78 + i * 6}));
   const S = {
     level, levelTime:0, levelDuration:60, bgY:0, boss:null, bossDeath:null, running:true,
     special:1, specialCooldown:0, weapon:1, score:0, stats:{shots:0, hits:0, kills:0}, equipment:[],
@@ -63,10 +63,10 @@ function step({S, combat, scroll}, seconds) {
   }
 }
 
-test('all eight missions stage distinct warned encounters, installations and six-second breathing windows', () => {
+test('all sixteen missions stage distinct warned encounters, installations and six-second breathing windows', () => {
   const combinations = new Set();
   const families = new Set();
-  for (let level = 0; level < 8; level++) {
+  for (let level = 0; level < 16; level++) {
     const game = setup({level});
     const groundKinds = new Set();
     for (let time = 0; time < 60; time += .25) {
@@ -74,13 +74,13 @@ test('all eight missions stage distinct warned encounters, installations and six
       for (const e of game.S.enemies) families.add(e.role);
       for (const t of game.S.turrets) groundKinds.add(t.kind);
     }
-    assert.equal(game.messages.length, 8, 'eight scheduled sections');
+    assert.equal(game.messages.length, level < 8 ? 8 : 9, 'all scheduled sections');
     assert(groundKinds.size > 0, 'at least one destructible installation');
     assert(game.waveTimes.some((time, i, times) => i > 0 && time - times[i - 1] >= 7.5));
     combinations.add(game.messages.join('\n'));
   }
-  assert.equal(combinations.size, 8);
-  assert.deepEqual([...families].sort(), ['bomber','diver','drone','fighter','interceptor','shield','support']);
+  assert.equal(combinations.size, 16);
+  assert.deepEqual([...families].sort(), ['bomber','diver','drone','fighter','harrier','interceptor','layer','mirage','scarab','shield','support']);
 });
 
 test('support protects nearby escorts and a diver commits to its warned dive', () => {
@@ -236,6 +236,7 @@ test('each craft has a distinct primary tier progression', () => {
     combat.firePlayer();
     assert.equal(S.pBullets.length, 1);
     const baseline = S.pBullets[0].damage;
+    S.equipment.push('u1','u2','u3','u4');
     S.weapon = 5;
     S.player.cool = 0;
     combat.firePlayer();
@@ -265,6 +266,7 @@ test('swept piercing handles overlapping targets once and reports one precision 
     {id:'second', x:270, y:774, rx:20, ry:14, hp:300}
   ];
   const {S, combat, hits} = setup({ship:'green', targets});
+  S.equipment.push('u1','u2','u3','u4');
   S.weapon = 5;
   combat.firePlayer();
   S.pBullets.splice(1);
@@ -318,4 +320,17 @@ test('clearing projectiles on a lethal hit ends the current collision pass', () 
   assert.equal(boss.hits.length, 1);
   assert.equal(boss.S.stats.hits, 1);
   assert.equal(boss.S.pBullets.length, 0);
+});
+
+
+test('a collected U4 fires from its own wingtip sockets even as the first pickup', () => {
+  for (const ship of Object.keys(configs)) {
+    const {S,combat}=setup({ship});S.equipment.push('u4');S.weapon=2;
+    combat.firePlayer();
+    assert.equal(S.pBullets.length,3);
+    const [base,left,right]=S.pBullets;
+    assert.ok(left.x < base.x-35 && right.x > base.x+35);
+    assert.ok(left.y > base.y && right.y > base.y);
+    assert.ok(left.vx < 0 && right.vx > 0);
+  }
 });

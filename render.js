@@ -3,6 +3,7 @@
 const BOAT_ART = {
   patrol: [962,480,130,190],
   gunboat: [205,674,160,193],
+  cutter: [962,480,130,190],
 };
 const PICKUP_EDGE = 43;
 const PICKUP_ART = {
@@ -45,6 +46,11 @@ function drawNavalHull(target,width,height,heading,opacity,death) {
   }
   drawSprite(imgs.enemyChapter2,BOAT_ART[target.role],0,0,width,height,
     target.dead ? Math.min(.33,death*.3) : 0,opacity);
+  if (target.role === 'cutter' && !target.dead) {
+    ctx.fillStyle = '#eedb93';
+    ctx.fillRect(-width*.26, 0, width*.52, 3);
+    ctx.fillStyle = '#204f60';ctx.fillRect(-4, -4, 8, 12);
+  }
   ctx.restore();
 }
 
@@ -62,6 +68,12 @@ function drawGroundObject(target) {
   else drawSprite(imgs.turretAlt,turretRect(target),0,0,width*1.1,height*1.1,
     target.dead ? 0 : aim-Math.PI*.5,opacity);
 
+  if (target.role === 'prism' && !target.dead) {
+    ctx.save();ctx.rotate(aim);
+    ctx.fillStyle = '#21425a';ctx.strokeStyle = '#a9f7ef';ctx.lineWidth = 2;
+    ctx.beginPath();ctx.moveTo(18,0);ctx.lineTo(0,8);ctx.lineTo(-9,0);ctx.lineTo(0,-8);ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.restore();
+  }
   if (!target.dead && target.fireFlash > 0) {
     const distance = target.naval ? height*.30 : height*.41;
     const x = Math.cos(aim)*distance, y = Math.sin(aim)*distance;
@@ -204,4 +216,37 @@ function drawCongratulations() {
   ctx.font = '650 17px system-ui';
   ctx.fillText('Spécial rechargé et une vie gagnée',x,y+101);
   ctx.restore();
+}
+
+function drawMountedWeapons(pilot,player) {
+  const colors = {blue:'#91afbd',green:'#8d9f78',red:'#bf8176',gold:'#c6ad74'};
+  FlightArms.forEachMount(pilot.id,S.equipment,(mount,side,key) => {
+    const socket = FlightArms.mountPose(mount,side,key,player);
+    ctx.save();
+    ctx.translate(socket.x,socket.y);
+    if (side < 0) ctx.scale(-1,1);
+    const fin = mount.shape === 'fin', pod = mount.shape === 'pod', coil = mount.shape === 'coil';
+    const width = pod ? 7 : coil ? 6 : 4.5;
+    // A steel pylon bridges the fuselage and each outboard housing.
+    if (side) {
+      ctx.fillStyle = '#233241'; ctx.fillRect(-10,1,11,5);
+      ctx.fillStyle = colors[pilot.id]; ctx.fillRect(-10,1,10,1.5);
+    }
+    ctx.strokeStyle = '#15242f';ctx.lineWidth = 2;
+    ctx.fillStyle = colors[pilot.id];
+    ctx.beginPath();ctx.moveTo(-width,-5);ctx.lineTo(-width*.6,-11);ctx.lineTo(width*.55,-11);
+    ctx.lineTo(fin ? width+4 : width,-2);ctx.lineTo(width,8);ctx.lineTo(-width*.7,10);ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.fillStyle = '#dae5e7';ctx.fillRect(-width*.62,-9,1.5,12);
+    ctx.fillStyle = '#132735';ctx.fillRect(-2,-14,4,11);
+    if (mount.shape === 'rail') ctx.fillRect(2.8,-13,1.6,8);
+    if (pod) { ctx.fillRect(-4.8,-10,2.5,5);ctx.fillRect(2.4,-10,2.5,5); }
+    ctx.fillStyle = pilot.color;
+    if (coil) { for (let y=-6;y<=4;y+=4) ctx.fillRect(-4,y,8,1.8); }
+    else ctx.fillRect(-2.5,3,5,2.5);
+    if (player.muzzleFlash > .035) {
+      ctx.globalAlpha = reducedEffects() ? .5 : .82;
+      ctx.drawImage(Scenery.flare(pilot.color),-4.5,-18,9,11);
+    }
+    ctx.restore();
+  });
 }

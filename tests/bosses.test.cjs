@@ -4,10 +4,10 @@ const path = require('node:path');
 const { test } = require('node:test');
 const vm = require('node:vm');
 
-const source = readFileSync(path.join(__dirname, '../bosses-v6.js'), 'utf8');
+const source = ['campaign.js','bosses-v6.js'].map(file => readFileSync(path.join(__dirname,'..',file),'utf8')).join('\n');
 
 function fixture(level, options = {}) {
-  const shots = [], reinforcements = [], messages = [], labels = new Map();
+  const shots = [], sounds = [], drops = [], reinforcements = [], messages = [], labels = new Map();
   const player = { x: 270, y: 800, dead: false };
   const state = {
     level, player, boss: null, bossNodes: [], enemies: [], pBullets: [], eBullets: [], turrets: [], fx: [],
@@ -35,7 +35,7 @@ function fixture(level, options = {}) {
     $: label,
     banner(text) { label('levelBanner').classList.add('show'); messages.push(text); },
     showMsg: text => messages.push(text),
-    sfx() {}, hitPlayer() {}, drawImageCentered() {}, stopMusic() {},
+    sfx: name => sounds.push(name), spawnDrop: (...args) => drops.push(args), hitPlayer() {}, drawImageCentered() {}, stopMusic() {},
     nextLevel: () => { completed++; }, startCongratulations: () => { congratulations++; },
     visualQuality: () => options.low ? 0 : 2,
     reducedEffects: () => Boolean(options.low),
@@ -55,14 +55,14 @@ function fixture(level, options = {}) {
   function hit(t, damage = 10000, metadata) {
     return boss.hit(t, damage, t.x, t.y, metadata);
   }
-  return { boss, state, player, shots, reinforcements, messages, labels, step, hit,
+  return { boss, state, player, shots, sounds, drops, reinforcements, messages, labels, step, hit,
     completed: () => completed, congratulations: () => congratulations };
 }
 
 test('each boss exposes attackable modules, loses weapons and completes a distinct wreck timeline', async t => {
   const sequences = new Set();
-  const mountedModules = [7, 8, 8, 9, 7, 8, 9, 9];
-  for (let level = 0; level < 8; level++) {
+  const mountedModules = [7,8,8,10,8,8,9,9,6,6,6,6,6,6,6,6];
+  for (let level = 0; level < mountedModules.length; level++) {
     await t.test(`mission ${level + 1}`, () => {
       const f = fixture(level);
       f.boss.spawn();
@@ -116,9 +116,12 @@ test('each boss exposes attackable modules, loses weapons and completes a distin
       assert.equal(f.completed(), 1);
       assert.equal(f.state.bossNodes.length, 0);
       assert.ok(b.rupturedAt > 0);
+      assert.ok(f.sounds.indexOf('hullBreak') < f.sounds.indexOf('reactorBreak'));
+      assert.ok(f.sounds.indexOf('reactorBreak') < f.sounds.indexOf('victory'));
+      assert.equal(f.sounds.filter(s => s === 'victory').length,1);
     });
   }
-  assert.equal(sequences.size, 8);
+  assert.equal(sequences.size, mountedModules.length);
 });
 
 test('shield projectors and plating protect the core until the named parts fail', () => {
@@ -241,7 +244,7 @@ test('auxiliary systems disable or weaken their corresponding attacks', async t 
   await t.test('Titan catapults and Hydra gyroscope each affect their own subsystem', () => {
     const f = encounter(3);
     f.hit(f.part('catapult-l'));
-    f.step(7);
+    f.step(8);
     assert.equal(f.reinforcements.length, 1);
     assert.equal(f.reinforcements[0].role, 'interceptor');
     f.reinforcements.length = 0;
@@ -309,4 +312,22 @@ test('Nightfall transforms without healing or repairing broken parts', () => {
   assert.equal(f.completed(), 0);
   assert.equal(f.congratulations(), 1);
   assert.ok(!f.state.shake && !f.state.hitStop);
+});
+
+
+test('each new command ship needs both flank guards and its rear bay cancels a call already in progress', () => {
+  for (let level=8;level<16;level++) {
+    const f=fixture(level); f.boss.spawn(); f.step(2.5);
+    const b=f.state.boss;
+    const guards=b.nodes.filter(n=>n.kind==='armor' || n.kind==='shield');
+    for (const guard of guards) {
+      f.hit(b.core,9999,{piercing:true}); assert.equal(b.hp,b.maxHp);
+      f.hit(guard);
+    }
+    assert.equal(f.drops.length,1);
+    f.hit(b.core,10); assert.ok(b.hp < b.maxHp);
+    b.summon=.01; f.step(.1); assert.ok(b.relayWarning>0);
+    f.hit(b.partsById.hangar); f.step(13);
+    assert.equal(f.reinforcements.length,0);
+  }
 });

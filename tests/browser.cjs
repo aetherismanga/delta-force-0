@@ -115,6 +115,7 @@ async function testDesktop(browser, base) {
     await boot(page, base);
     await capture(page, 'desktop-menu');
     await page.locator('#optsBtn').click();
+    assert.equal(await page.locator('#trackList button').count(),16);
     assert.equal(await page.locator('#soundVolume').inputValue(), '60');
     assert.equal(await page.locator('#musicVolume').inputValue(), '35');
     await page.locator('#musicVolume').fill('45');
@@ -427,13 +428,14 @@ async function testCampaign(browser, base) {
     await page.locator('#shipPlayBtn').click();
     const checked = [];
     const firstReleaseModules = [5, 6, 6, 6, 5, 6, 7, 7];
-    for (let level = 0; level < 8; level++) {
+    for (let level = 0; level < 16; level++) {
       await page.waitForFunction(index => S.running && S.level === index, level);
       await page.locator('#cinematicFade').waitFor({ state: 'hidden' });
       await checkTerrain(page, await page.evaluate(() => LEVELS[S.level].name));
       if (level === 0 || level === 4) await checkEnemyFacing(page);
+      assert.equal(await page.evaluate(() => S.weapon),1,'Fresh loadout for each sortie');
       const first = await page.evaluate(() => {
-        if (S.level === 0) {
+        {
           const p = S.player;
           spawnDrop('weapon', p.x, p.y);
           update(1 / 60);
@@ -471,7 +473,7 @@ async function testCampaign(browser, base) {
           weaponDisabled: node.shoot === weaponTimer,
         };
       });
-      assert.ok(first.modules > firstReleaseModules[level], `Composants supplémentaires — ${first.name}`);
+      assert.ok(first.modules > (firstReleaseModules[level] || 5), `Composants supplémentaires — ${first.name}`);
       assert.equal(first.damaged, true, `Impact sur le composant — ${first.name}`);
       assert.equal(first.detached, true, `Composant détaché — ${first.name}`);
       assert.equal(first.weaponDisabled, true, `Cycle du composant arrêté — ${first.name}`);
@@ -508,7 +510,7 @@ async function testCampaign(browser, base) {
         };
       });
       assert.deepEqual(final.phases, [1, 2, 3, 4], first.name);
-      assert.equal(Boolean(final.transformed), level === 7, first.name);
+      assert.equal(Boolean(final.transformed), (level === 7 || level === 15), first.name);
       assert.ok(final.wreckDuration >= 5, first.name);
       assert.ok(final.events >= 2 && final.debris > 0 && final.hits > 4, JSON.stringify({ name: first.name, ...final }));
       if (level === 7) await capture(page, 'boss-final-destruction');
@@ -518,11 +520,11 @@ async function testCampaign(browser, base) {
       await visible(page, '#end');
       assert.equal(await page.locator('#resultStats dt').count(), 6);
       assert.equal(await page.evaluate(() => Number(localStorage.df0progress)), level + 1);
-      if (level === 0 || level === 7) {
-        await checkMissionResult(page, level === 7 ? '#menuBtn' : '#nextMissionBtn');
+      if (level === 0 || level === 7 || level === 15) {
+        await checkMissionResult(page, level === 15 ? '#menuBtn' : '#nextMissionBtn');
       }
       checked.push({ ...first, ...final });
-      if (level === 7) {
+      if (level === 15) {
         assert.equal(await page.locator('#endTitle').textContent(), 'Victoire totale');
         await capture(page, 'campaign-victory');
         break;
@@ -539,7 +541,7 @@ async function testCampaign(browser, base) {
       }
     }
     assert.deepEqual(errors, []);
-    console.log('Campagne accélérée dans Edge : ' + JSON.stringify(checked));
+    console.log('Campagne accélérée dans Chromium : ' + JSON.stringify(checked));
   } finally {
     await context.close();
   }
@@ -599,7 +601,7 @@ async function main() {
   const base = process.env.DF0_BASE_URL || `http://127.0.0.1:${server.address().port}/`;
   let browser;
   try {
-    browser = await chromium.launch({ channel: process.env.DF0_BROWSER_CHANNEL, headless: true });
+    browser = await chromium.launch({ channel: process.env.DF0_BROWSER_CHANNEL, executablePath: process.env.DF0_BROWSER_EXECUTABLE, headless: true });
     await testDesktop(browser, base);
     await testAndroid(browser, base);
     await testCampaign(browser, base);

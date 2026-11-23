@@ -13,7 +13,9 @@ const LEVELS=[
  {name:"Village Mangrove",bg:"assets/media/asset-1bb9f55694fd63e5.webp",music:"assets/media/asset-6d3da2811150d09c.mp3",boss:'chapter2',bossName:"Hydra Rotor",bossW:350,bossH:330,bossHP:1180,scroll:108,difficulty:1.28},
  {name:"Archipel Sentinel",bg:"assets/media/asset-db68d325555c18f0.webp",music:"assets/media/asset-5826d4c7fbd4a177.mp3",boss:'chapter2',bossName:"Leviathan Azure",bossW:330,bossH:430,bossHP:1420,scroll:112,difficulty:1.34},
  {name:"Village des Cendres",bg:"assets/media/asset-4b8cb13f98415782.webp",music:"assets/media/asset-e0a03e9cc45094f1.mp3",boss:'chapter2',bossName:"Inferno Bastion",bossW:390,bossH:330,bossHP:1650,scroll:116,difficulty:1.42},
- {name:"Base Nocturne",bg:"assets/media/asset-b70f8b9f88ca1679.webp",music:"assets/media/asset-2ef885cd506f5e06.mp3",boss:'chapter2',bossName:"Nightfall Ω",bossW:390,bossH:470,bossHP:1980,scroll:120,difficulty:1.52}
+ {name:"Base Nocturne",bg:"assets/media/asset-b70f8b9f88ca1679.webp",music:"assets/media/asset-2ef885cd506f5e06.mp3",boss:'chapter2',bossName:"Nightfall Ω",bossW:390,bossH:470,bossHP:1980,scroll:120,difficulty:1.52},
+ ...FRONT_MISSIONS.map((front,i) => ({name:front.name, bg:frontFile(i)+'.webp', music:frontFile(i)+'.mp3',
+   bossName:front.boss.name, scroll:front.scroll}))
 ];
 const SHIPS=[
  {id:'blue',name:'Aigle bleu',meta:'Équilibré • précis • maniable',hp:3,speed:365,fire:.145,damageMul:1.00,damageTaken:1.00,hitbox:13,specialName:'MISSILES LOCK-ON',color:'#55cfff',frames:{idle:[12,25,245,300],left:[275,55,235,260],right:[520,55,225,260],boost:[730,20,255,330]}},
@@ -92,6 +94,9 @@ sources['carrierTurretRotaryDmg']='assets/media/asset-411425bed63653e0.png';
 Object.assign(sources,{"enemyChapter2":"assets/media/asset-683378032d181255.webp","boss21":"assets/media/asset-3ca577449a330f2a.webp","boss22":"assets/media/asset-0d35234232b8797c.webp","boss23":"assets/media/asset-0b1dcd7be3591e57.webp","boss24":"assets/media/asset-2fe730deee843d96.webp"});
 Object.assign(sources,{"bg4":"assets/media/asset-1bb9f55694fd63e5.webp","bg5":"assets/media/asset-db68d325555c18f0.webp","bg6":"assets/media/asset-4b8cb13f98415782.webp","bg7":"assets/media/asset-b70f8b9f88ca1679.webp"});
 
+sources.enemyFronts='assets/fronts/enemy-fronts.webp';
+FRONT_MISSIONS.forEach((_,i) => { sources['frontBoss'+(i+8)] = frontFile(i,'boss')+'.webp'; });
+
 /* V5.2 campaign visual assets */
 sources.campaignMenuArt='assets/media/asset-0a16e72ef9f2ed97.webp';
 sources.campaignProgressArt='assets/media/asset-3dbc445a1f3a7fd7.webp';
@@ -109,7 +114,7 @@ const CAMPAIGN_PAGES=[
  {name:'Guerre totale',range:'Niveaux 5.1 à 6.4',chapters:[5,6]},
  {name:'Dernier assaut',range:'Niveaux 7.1 à 8.4',chapters:[7,8]}
 ];
-const FUTURE_NAMES={3:['Jungle Obsidienne','Delta Rouge','Forteresse Kappa','Temple de Fer'],4:['Désert Spectral','Convoi Zeta','Citadelle Solaire','Orbite Noire'],5:['Glacier Sigma','Faille Titan','Station Borealis','Cœur Arctique'],6:['Métropole Fantôme','Zone Reactor','Avenue des Cendres','Dôme Central'],7:['Lune d’Acier','Anneau Vega','Plateforme Zéro','Nexus Rouge'],8:['Approche Finale','Mur Oméga','Trône Ennemi','Dernière Force']};
+const FUTURE_NAMES={5:['Glacier Sigma','Faille Titan','Station Borealis','Cœur Arctique'],6:['Métropole Fantôme','Zone Reactor','Avenue des Cendres','Dôme Central'],7:['Lune d’Acier','Anneau Vega','Plateforme Zéro','Nexus Rouge'],8:['Approche Finale','Mur Oméga','Trône Ennemi','Dernière Force']};
 function getProgress() {
   if (embedHost) return embedProgress;
   return clampV(parseInt(readSetting('df0progress'),10)||0,0,32);
@@ -142,7 +147,7 @@ function renderProgress(page=mapPage){
      if(unlocked)btn.onclick=()=>{sfx('pickup');launchLevelReliable(gi)};else btn.disabled=true;
      layer.appendChild(btn);
    }
-   const done=Math.min(progress,LEVELS.length);$('progressVisualSummary').textContent=TEST_UNLOCK_ALL?`MODE TEST • ${LEVELS.length}/${LEVELS.length} niveaux jouables déverrouillés`:`${done}/${LEVELS.length} zones sécurisées • Prochain objectif : ${progress<LEVELS.length?stageLabel(progress):'chapitre 3 à venir'}`;
+   const done=Math.min(progress,LEVELS.length);$('progressVisualSummary').textContent=TEST_UNLOCK_ALL?`MODE TEST • ${LEVELS.length}/${LEVELS.length} niveaux jouables déverrouillés`:`${done}/${LEVELS.length} zones sécurisées • Prochain objectif : ${progress<LEVELS.length?stageLabel(progress):'campagne terminée'}`;
    $('mapPrev').disabled=false;$('mapNext').disabled=false;
    $('continueCampaignBtn').hidden=progress>=LEVELS.length;
    $('continueCampaignBtn').textContent=progress?`Continuer · ${stageLabel(progress)}`:'Commencer · 1.1';
@@ -150,33 +155,35 @@ function renderProgress(page=mapPage){
    visual.classList.add('hidden');future.classList.remove('hidden');
    $('mapPageName').textContent=`Carte ${mapPage+1} — ${P.name}`;$('mapPageRange').textContent=P.range;
    $('mapPrevFuture').disabled=false;$('mapNextFuture').disabled=mapPage===3;
-   const m=$('campaignMap');m.innerHTML='<div class="campaignPath"></div>';
+   const m=$('campaignMap');m.classList.toggle('playableFront',mapPage===1);m.innerHTML='<div class="campaignPath"></div>';
    const start=mapPage*8;const y=[58,128,205,278,380,452,529,602];
    const div=document.createElement('div');div.className='chapterDivider';div.style.top='342px';m.appendChild(div);
-   const tag1=document.createElement('div');tag1.className='chapterTag';tag1.style.top='16px';tag1.textContent=`CHAPITRE ${P.chapters[0]}`;m.appendChild(tag1);
-   const tag2=document.createElement('div');tag2.className='chapterTag';tag2.style.top='350px';tag2.textContent=`CHAPITRE ${P.chapters[1]}`;m.appendChild(tag2);
+   const tag1=document.createElement('div');tag1.className='chapterTag';tag1.style.top='16px';tag1.textContent=mapPage===1 ? 'CHAPITRE 3 · FRONT BORÉAL' : `CHAPITRE ${P.chapters[0]}`;m.appendChild(tag1);
+   const tag2=document.createElement('div');tag2.className='chapterTag';tag2.style.top='350px';tag2.textContent=mapPage===1 ? 'CHAPITRE 4 · ÉGYPTE' : `CHAPITRE ${P.chapters[1]}`;m.appendChild(tag2);
    for(let k=0;k<8;k++){
      const gi=start+k,d=campaignNodeData(gi),btn=document.createElement('button');btn.className='levelNode';btn.style.top=y[k]+'px';
      const complete=gi<progress,available=(TEST_UNLOCK_ALL&&d.implemented)||(gi===progress&&d.implemented),unlocked=d.implemented&&(TEST_UNLOCK_ALL||gi<=progress);
      if(complete)btn.classList.add('complete');else if(available)btn.classList.add('current');else if(!d.implemented)btn.classList.add('future');else btn.classList.add('locked');
      const st=complete?'✓ TERMINÉ':available?'▶ DISPONIBLE':(!d.implemented?'À VENIR':'🔒 VERROUILLÉ');
+     if(mapPage===1)btn.style.setProperty('--terrain',`url("${LEVELS[gi].bg}")`);
      btn.innerHTML=`<div class="n">${d.label}</div><div class="nm">${d.name}</div><div class="st">${st}</div>`;
-     if(unlocked||complete)btn.onclick=()=>{sfx('pickup');startGame(gi)};else btn.disabled=true;m.appendChild(btn);
+     if(unlocked)btn.onclick=()=>{sfx('pickup');launchLevelReliable(gi)};else btn.disabled=true;m.appendChild(btn);
    }
    if(!pageUnlocked(mapPage)){
      const lock=document.createElement('div');lock.className='pageLock';lock.innerHTML=`<div class="pageLockBox"><div class="pageLockIcon">🔒</div><div class="pageLockTitle">Carte verrouillée</div><div class="pageLockText">Termine la carte précédente pour déverrouiller ${P.range}.</div></div>`;m.appendChild(lock);
    }
-   const done=Math.min(progress,LEVELS.length);$('progressSummary').textContent=TEST_UNLOCK_ALL?`MODE TEST • tous les niveaux actuellement créés sont accessibles`:`${done}/${LEVELS.length} zones actuelles sécurisées • Prochain objectif : ${progress<LEVELS.length?stageLabel(progress):'chapitre 3 à venir'}`;
-   if(TEST_UNLOCK_ALL){$('resumeProgressBtn').disabled=false;$('resumeProgressBtn').textContent='Choisir un niveau déverrouillé';}else{$('resumeProgressBtn').disabled=progress>=LEVELS.length;$('resumeProgressBtn').textContent=progress<LEVELS.length?`Jouer au niveau ${stageLabel(progress)}`:'Chapitre 3 à venir';}
+   const done=Math.min(progress,LEVELS.length);$('progressSummary').textContent=TEST_UNLOCK_ALL?`MODE TEST • tous les niveaux actuellement créés sont accessibles`:`${done}/${LEVELS.length} zones actuelles sécurisées • Prochain objectif : ${progress<LEVELS.length?stageLabel(progress):'campagne terminée'}`;
+   $('resumeProgressBtn').disabled=progress>=LEVELS.length;
+   $('resumeProgressBtn').textContent=progress<LEVELS.length?`Jouer au niveau ${stageLabel(progress)}`:'Campagne terminée';
  }
 }
-function openProgress(){setScreen('progress');renderProgress(0)}
+function openProgress(){setScreen('progress');renderProgress(getProgress() >= 8 ? 1 : 0)}
 
 const SHIP_DETAILS={
- blue:{role:'Intercepteur polyvalent',desc:'Pilotage équilibré et tirs concentrés pour viser entre les défenses.',tags:['Précision','Maniabilité'],strong:'Petit gabarit et bonne vitesse.',weak:'Armure moyenne.',special:'Huit missiles autoguidés se répartissent entre les ennemis et les modules du boss.',up:['U1 · Deux tirs décalés','U2 · Noyau renforcé','U3 · Deux tirs inclinés','U4 · Tir central supplémentaire']},
- green:{role:'Chasseur blindé',desc:'Appareil lourd conçu pour tenir sa position et percer les défenses.',tags:['Blindage','Puissance'],strong:'Cinq points d’énergie et impact élevé.',weak:'Déplacement lent et large gabarit.',special:'Après une charge visible, le canon traverse les cibles alignées et fragilise les blindages.',up:['U1 · Double tir lourd','U2 · Obus central perforant','U3 · Batteries latérales','U4 · Canon frontal à pénétration accrue']},
- red:{role:'Chasseur offensif',desc:'Un appareil léger qui alterne déplacements rapides et rafales en diagonale.',tags:['Vitesse','Cadence'],strong:'Vitesse et cadence les plus élevées.',weak:'Deux points d’énergie et projectiles légers.',special:'Quatre salves de missiles autoguidés partent des flancs et poursuivent plusieurs cibles.',up:['U1 · Double rafale','U2 · Première paire diagonale','U3 · Éventail élargi','U4 · Tirs latéraux à grand angle']},
- gold:{role:'Prototype d’élite',desc:'Une couverture croissante et un rayon à balayer sur les points faibles.',tags:['Puissance','Couverture'],strong:'Tir large et résistance accrue.',weak:'Plus grande surface exposée.',special:'Après la charge, le rayon suit les déplacements latéraux du vaisseau et endommage en continu les cibles traversées.',up:['U1 · Flux double','U2 · Tir triple','U3 · Éventail à cinq trajectoires','U4 · Paire latérale supplémentaire']}
+ blue:{role:'Intercepteur polyvalent',desc:'Pilotage équilibré et tirs concentrés pour viser entre les défenses.',tags:['Précision','Maniabilité'],strong:'Petit gabarit et bonne vitesse.',weak:'Armure moyenne.',special:'Huit missiles autoguidés se répartissent entre les ennemis et les modules du boss.'},
+ green:{role:'Chasseur blindé',desc:'Appareil lourd conçu pour tenir sa position et percer les défenses.',tags:['Blindage','Puissance'],strong:'Cinq points d’énergie et impact élevé.',weak:'Déplacement lent et large gabarit.',special:'Après une charge visible, le canon traverse les cibles alignées et fragilise les blindages.'},
+ red:{role:'Chasseur offensif',desc:'Un appareil léger qui alterne déplacements rapides et rafales en diagonale.',tags:['Vitesse','Cadence'],strong:'Vitesse et cadence les plus élevées.',weak:'Deux points d’énergie et projectiles légers.',special:'Quatre salves de missiles autoguidés partent des flancs et poursuivent plusieurs cibles.'},
+ gold:{role:'Prototype d’élite',desc:'Une couverture croissante et un rayon à balayer sur les points faibles.',tags:['Puissance','Couverture'],strong:'Tir large et résistance accrue.',weak:'Plus grande surface exposée.',special:'Après la charge, le rayon suit les déplacements latéraux du vaisseau et endommage en continu les cibles traversées.'}
 };
 const TURRET_ROWS={gun:0,mini:1,missile:2,plasma:3};
 function updateShipInfo(){
@@ -187,7 +194,7 @@ function updateShipInfo(){
  const spd=Math.round(Math.min(100,sh.speed/4.5));
  const def=Math.round(Math.min(100,(sh.hp*15)+(1-sh.damageTaken)*45));
  const spec={blue:78,green:86,red:82,gold:94}[sh.id]||80;
- box.innerHTML=`<div class="shipHero"><img class="shipHeroArt" src="${sources[key]}" alt="${sh.name}"><div class="shipHeroText"><div class="shipInfoTitle">${sh.name}</div><div class="shipInfoRole">${d.role}</div><div class="shipInfoDesc">${d.desc}</div><div class="shipPills">${d.tags.map(x=>`<span class="shipPill">${x}</span>`).join('')}</div></div></div><div class="shipBars"><div class="shipBar"><span>Vitesse</span><div class="shipBarTrack"><div class="shipBarFill" style="width:${spd}%"></div></div><b>${sh.speed}</b></div><div class="shipBar"><span>Attaque</span><div class="shipBarTrack"><div class="shipBarFill" style="width:${atk}%"></div></div><b>${Math.round(sh.damageMul*100)}%</b></div><div class="shipBar"><span>Défense</span><div class="shipBarTrack"><div class="shipBarFill" style="width:${def}%"></div></div><b>${sh.hp}♥</b></div><div class="shipBar"><span>Spécial</span><div class="shipBarTrack"><div class="shipBarFill" style="width:${spec}%"></div></div><b>${spec}</b></div></div><div class="shipTraits"><div class="shipTrait good"><strong>POINTS FORTS</strong>${d.strong}</div><div class="shipTrait bad"><strong>FAIBLESSES</strong>${d.weak}</div></div><div class="shipSpecial"><strong>SPÉCIAL — ${sh.specialName}</strong><br>${d.special}</div><ul class="shipUpgrades">${d.up.map(x=>`<li>${x}</li>`).join('')}</ul>`;
+ box.innerHTML=`<div class="shipHero"><img class="shipHeroArt" src="${sources[key]}" alt="${sh.name}"><div class="shipHeroText"><div class="shipInfoTitle">${sh.name}</div><div class="shipInfoRole">${d.role}</div><div class="shipInfoDesc">${d.desc}</div><div class="shipPills">${d.tags.map(x=>`<span class="shipPill">${x}</span>`).join('')}</div></div></div><div class="shipBars"><div class="shipBar"><span>Vitesse</span><div class="shipBarTrack"><div class="shipBarFill" style="width:${spd}%"></div></div><b>${sh.speed}</b></div><div class="shipBar"><span>Attaque</span><div class="shipBarTrack"><div class="shipBarFill" style="width:${atk}%"></div></div><b>${Math.round(sh.damageMul*100)}%</b></div><div class="shipBar"><span>Défense</span><div class="shipBarTrack"><div class="shipBarFill" style="width:${def}%"></div></div><b>${sh.hp}♥</b></div><div class="shipBar"><span>Spécial</span><div class="shipBarTrack"><div class="shipBarFill" style="width:${spec}%"></div></div><b>${spec}</b></div></div><div class="shipTraits"><div class="shipTrait good"><strong>POINTS FORTS</strong>${d.strong}</div><div class="shipTrait bad"><strong>FAIBLESSES</strong>${d.weak}</div></div><div class="shipSpecial"><strong>SPÉCIAL — ${sh.specialName}</strong><br>${d.special}</div><ul class="shipUpgrades">${Object.entries(FlightArms.mounts[sh.id]).map(([key,m])=>`<li>${key.toUpperCase()} · ${m.name}</li>`).join('')}</ul>`;
 }
 
 
@@ -197,8 +204,8 @@ const EQUIP_TYPES=['u1','u2','u3','u4'];
 function remainingEquipment(){return EQUIP_TYPES.filter(k=>!S.equipment.includes(k)&&!S.drops.some(d=>d.kind==='weapon'&&d.upgradeType===k))}
 function syncWeapon(){S.weapon=1+S.equipment.length}
 function resetEquipment(){S.equipment.length=0;syncWeapon()}
-function grantStarReward(){if(S.starsRewardGranted)return;S.starsRewardGranted=true;S.special=1;S.specialCooldown=0;$('specialCount').textContent='x1';$('specialBtn').classList.remove('used');S.lives++;$('livesText').textContent='♥'.repeat(S.lives);showMsg('4 ÉTOILES ! SPÉCIAL RECHARGÉ + 1 VIE',2.4);sfx('victory')}
-function startCongratulations(){S.rewardCelebration={t:0};S.enemies.length=0;S.eBullets.length=0;S.pBullets.length=0;stopMusic();sfx('victory')}
+function grantStarReward(){if(S.starsRewardGranted)return;S.starsRewardGranted=true;S.special=1;S.specialCooldown=0;$('specialCount').textContent='x1';$('specialBtn').classList.remove('used');S.lives++;$('livesText').textContent='♥'.repeat(S.lives);showMsg('4 ÉTOILES ! SPÉCIAL RECHARGÉ + 1 VIE',2.4);sfx('pickup')}
+function startCongratulations(){S.rewardCelebration={t:0};S.enemies.length=0;S.eBullets.length=0;S.pBullets.length=0;stopMusic()}
 function drawImageCentered(im,x,y,maxW,maxH,rot=0,alpha=1){if(!im)return;const sc=Math.min(maxW/im.width,maxH/im.height),w=im.width*sc,h=im.height*sc;ctx.save();ctx.globalAlpha=alpha;ctx.translate(x,y);if(rot)ctx.rotate(rot);ctx.drawImage(im,-w/2,-h/2,w,h);ctx.restore()}
 
 function initShips(){
@@ -356,20 +363,26 @@ const COMMON_ART = [
   'shieldBoss','shield_icon','redStars','pickups','bullet_spread','bullet_elite'
 ];
 
+function bossArtPrefix(level) {
+  if (level >= 8) return 'frontBoss' + level;
+  return level < 4 ? `boss${level}_` : `boss${17+level}`;
+}
+
 function loadLevelArt(level) {
-  const prefix = level < 4 ? `boss${level}_` : `boss${17+level}`;
+  const prefix = bossArtPrefix(level);
   const keys = Object.keys(sources).filter(key =>
     key.startsWith(prefix) || key.startsWith(`plane_${ship().id}_`) || (level===3 && key.startsWith('carrier')));
   if (level === 0) keys.push('bossDestroy');
+  if (level >= 8) keys.push('enemyFronts');
   return loadArt(['bg'+level, ...keys, ...COMMON_ART]);
 }
 
 function releaseOldArt(level) {
   const shipPrefix = `plane_${ship().id}_`;
-  const bossPrefix = level < 4 ? `boss${level}_` : `boss${17+level}`;
+  const bossPrefix = bossArtPrefix(level);
   for (const key of Object.keys(imgs)) {
-    const obsolete = (/^bg\d$/.test(key) && key !== 'bg'+level) ||
-      (/^boss\d/.test(key) && !key.startsWith(bossPrefix)) ||
+    const obsolete = (/^bg\d+$/.test(key) && key !== 'bg'+level) ||
+      (/^(?:boss|frontBoss)\d/.test(key) && !key.startsWith(bossPrefix)) ||
       (key.startsWith('plane_') && !key.startsWith(shipPrefix)) ||
       (key.startsWith('carrier') && level!==3) || (key==='bossDestroy' && level!==0);
     if (obsolete) delete imgs[key];
@@ -419,8 +432,42 @@ function tone(from, length=.09, type='sine', gain=.055, to=from, delay=0) {
   oscillator.onended = () => { oscillator.disconnect(); volume.disconnect(); };
 }
 
+let blastBuffer;
+// A cached noise source supplies the crack and falling debris, independent from the score.
+function blastNoise(duration, cutoff, gain, delay = 0, filter = 'lowpass') {
+  if (!ac || !audioOutput || !S.sound || S.soundVol <= 0) return;
+  if (!blastBuffer) {
+    blastBuffer = ac.createBuffer(1,Math.ceil(ac.sampleRate*1.55),ac.sampleRate);
+    const samples = blastBuffer.getChannelData(0);
+    for (let i=0;i<samples.length;i++) samples[i] = Math.random()*2-1;
+  }
+  const at = ac.currentTime+delay;
+  const noise = ac.createBufferSource(), band = ac.createBiquadFilter(), envelope = ac.createGain();
+  noise.buffer = blastBuffer;
+  band.type = filter;band.Q.value = .8;
+  band.frequency.setValueAtTime(cutoff,at);
+  band.frequency.exponentialRampToValueAtTime(Math.max(105,cutoff*.14),at+duration);
+  envelope.gain.setValueAtTime(.0001,at);
+  envelope.gain.exponentialRampToValueAtTime(Math.max(.0002,gain*S.soundVol),at+.008);
+  envelope.gain.exponentialRampToValueAtTime(.0001,at+duration);
+  noise.connect(band).connect(envelope).connect(audioOutput);
+  noise.start(at,Math.random()*.08,duration);
+  noise.onended = () => { noise.disconnect();band.disconnect();envelope.disconnect(); };
+}
+
+const blastLayers = {
+  explode:[[.32,2950,.62],[.12,3700,.20,.035,'bandpass']],
+  armorBreak:[[.22,4900,.46,0,'bandpass'],[.17,3200,.24,.10,'bandpass']],
+  hullBreak:[[.67,3300,.60],[.33,4300,.42,.24,'bandpass'],[.42,1700,.45,.48]],
+  reactorBreak:[[1.17,3500,.82],[.43,5600,.39,.07,'bandpass'],[.62,2050,.46,.52]]
+};
 const voices = {
   shot: [[550,.038,'triangle',.035,230]],
+  shotblue:[[780,.055,'sine',.052,360]], shotgreen:[[164,.11,'triangle',.12,61]],
+  shotred:[[470,.045,'square',.019,180],[360,.035,'triangle',.032,140,.026]],
+  shotgold:[[690,.085,'sine',.062,422],[1035,.06,'sine',.025,631]],
+  hullBreak:[[136,.62,'sawtooth',.11,33],[73,.86,'triangle',.18,25],[510,.30,'triangle',.067,88,.19]],
+  reactorBreak:[[108,.92,'sine',.33,28],[205,.75,'triangle',.15,45],[830,.42,'sawtooth',.055,90,.17]],
   enemyShot: [[340,.085,'triangle',.032,145]],
   hit: [[145,.24,'triangle',.18,45],[90,.13,'sawtooth',.03,34]],
   explode: [[125,.21,'triangle',.115,35],[165,.1,'sawtooth',.023,46]],
@@ -436,17 +483,20 @@ const voices = {
   shieldHit: [[810,.095,'sine',.067,340]],
   enemyImpact: [[260,.065,'triangle',.042,98]],
   boss: [[90,.45,'triangle',.17,46],[170,.3,'sawtooth',.035,92,.08],[140,.39,'triangle',.11,62,.42]],
-  victory: [[523,.17,'triangle',.085],[659,.17,'triangle',.085,659,.12],[784,.22,'triangle',.09,784,.24],[1047,.38,'sine',.09,1047,.37]],
+  victory: [[392,.19,'triangle',.14],[523,.21,'triangle',.15,523,.17],[659,.25,'triangle',.15,659,.36],
+    [784,.29,'triangle',.16,784,.56],[1047,.65,'triangle',.15,1047,.85],[659,.66,'sine',.11,659,.85],
+    [392,.66,'sine',.13,392,.85]],
   engine: [[52,.34,'sine',.07,34],[93,.31,'triangle',.028,61]],
 };
 
 function sfx(name) {
   if (!S.sound || !voices[name]) return;
   const now = performance.now();
-  const interval = ({shot:90, enemyShot:155, explode:75, enemyImpact:75, shieldHit:90, engine:500})[name] || 45;
+  const interval = name.startsWith('shot') ? 90 : ({ enemyShot:155, explode:75, enemyImpact:75, shieldHit:90, engine:500})[name] || 45;
   if (now - (lastSound[name] ?? -Infinity) < interval) return;
   lastSound[name] = now;
   for (const voice of voices[name]) tone(...voice);
+  for (const layer of blastLayers[name] || []) blastNoise(...layer);
 }
 
 function playMusic(src, gain=1) {
@@ -478,6 +528,7 @@ function boostBossMusic() {
 }
 
 function setupLevel(first = false) {
+  resetEquipment();
   nextHudRefresh = 0;
   Object.assign(S, {
     levelTime: 0, bgY: 0, special: 1, specialCooldown: 0, boss: null,
@@ -507,7 +558,7 @@ function setupLevel(first = false) {
   fadeMusic(.12, .75, 800);
   sfx('engine');
   banner(`NIVEAU ${stageLabel(S.level)} — ${LEVELS[S.level].name}`, 2);
-  if (!first) showMsg('Nouvelle zone · spécial prêt', 1.4);
+  if (!first) showMsg('Armement de base · spécial prêt', 1.4);
   refreshHud();
 }
 
@@ -516,7 +567,6 @@ function startGame(fromLevel = 0, continueCampaign = false) {
   nextMission = null;
   S.level = clampV(Math.trunc(fromLevel)||0, 0, LEVELS.length-1);
   if (!continueCampaign) {
-    resetEquipment();
     S.score = 0;
     S.lives = 3;
   }
@@ -626,7 +676,8 @@ function updateDrops(dt,p) {
       if (d.kind === 'weapon' && d.upgradeType && !S.equipment.includes(d.upgradeType)) {
         S.equipment.push(d.upgradeType);
         syncWeapon();
-        showMsg(`Arme renforcée · niveau ${S.weapon}`, 1.4);
+        p.fitting = {key:d.upgradeType, remaining:.40};
+        showMsg(`${FlightArms.mounts[ship().id][d.upgradeType].name} · arme ${S.weapon}`, 1.6);
       } else if (d.kind === 'shield') {
         p.shield = 4.75;
         showMsg('Bouclier actif',1.2);
@@ -696,6 +747,8 @@ function update(dt) {
     refreshHud();
     return;
   }
+  if (p.fitting && (p.fitting.remaining -= dt) <= 0) p.fitting = null;
+  p.muzzleFlash = Math.max(0,(p.muzzleFlash||0)-dt);
   p.cool = Math.max(0,p.cool-dt);
   p.inv = Math.max(0,p.inv-dt);
   p.shield = Math.max(0,p.shield-dt);
@@ -742,7 +795,7 @@ function drawPlayerCraft() {
   if (!p || p.dead) return;
   const pilot = ship();
   const stage = S.equipment.length;
-  const rotation = clampV(S.bank*.00048,-.24,.24);
+  const {rotation,hover} = FlightArms.pose(S.bank,S.levelTime);
   const opacity = p.inv > 0 && !reducedEffects() ? .64 + .36*Math.abs(Math.sin(S.levelTime*20)) : 1;
   const flame = Scenery.flare(pilot.color);
   const boost = Math.sin(S.levelTime*39)*3 + Math.min(20,Math.abs(p.vy||0)*.04);
@@ -755,9 +808,12 @@ function drawPlayerCraft() {
   ctx.drawImage(flame,-8,23,16,37+boost);
   ctx.globalCompositeOperation = 'source-over';
   const image = imgs[`plane_${pilot.id}_${stage}`];
-  const hover = Math.sin(S.levelTime*7.5)*1.5;
   if (image) drawImageCentered(image,0,hover,78+stage*4,94+stage*5);
   else drawSprite(imgs.players,pilot.frames.boost,0,hover,72,94);
+  ctx.save();
+  ctx.translate(0,hover);
+  drawMountedWeapons(pilot,p);
+  ctx.restore();
   if (p.shield > 0) {
     ctx.strokeStyle = p.shield < .8 ? '#77e9ff88' : '#8befff';
     ctx.fillStyle = '#76ddf219';
@@ -907,11 +963,10 @@ function nextLevel() {
   S.stats.boss = true;
   if (S.level === LEVELS.length-1) {
     nextMission = null;
-    sfx('victory');
-    finish(true,'Les huit zones sont sécurisées.');
+    finish(true,'Les seize zones sont sécurisées.');
   } else {
     nextMission = S.level+1;
-    loadLevelArt(nextMission);
+    loadArt(['bg'+nextMission]);
     finish(false,`${S.score.toLocaleString('fr-FR')} points cumulés`,true);
   }
 }
@@ -953,7 +1008,7 @@ function launchLevelReliable(level = 0, continueCampaign = false) {
   const fade = $('cinematicFade');
   clearTimeout(fadeTimeout);
   $('cinematicFadeTitle').textContent = title;
-  $('cinematicFadeSub').textContent = level === 4 ? 'Chapitre 2 · front ennemi' : 'Autorisation de décollage';
+  $('cinematicFadeSub').textContent = ({4:'Chapitre 2 · Front ennemi',8:'Chapitre 3 · Front boréal',12:'Chapitre 4 · Égypte'})[level] || 'Autorisation de décollage';
   fade.classList.remove('hidden');
   requestAnimationFrame(() => fade.classList.add('show'));
   const token = ++launchToken;

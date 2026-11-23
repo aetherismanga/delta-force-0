@@ -18,6 +18,14 @@ function createCombatV6({
     shield:      {type:'heli',   hp:8.5, speed:92,  rx:34, ry:34, rate:3.2, color:'#8af5ff'},
     support:     {type:'yellow', hp:6.5, speed:94,  rx:23, ry:28, rate:0,   color:'#a3fdb2'}
   };
+  Object.assign(roles, {
+    harrier:{type:'yellow',hp:4.8,speed:168,rx:23,ry:27,rate:2.25,color:'#9ff3ff'},
+    layer:{type:'bomber',hp:10.5,speed:92,rx:32,ry:29,rate:2.8,color:'#9df0fa'},
+    mirage:{type:'red',hp:5.2,speed:171,rx:25,ry:25,rate:2.3,color:'#ffc88c'},
+    scarab:{type:'heli',hp:9,speed:106,rx:27,ry:29,rate:2.8,color:'#e8c46f'}
+  });
+  const frontArt = Object.fromEntries(['harrier','layer','mirage','scarab'].map((role,i) =>
+    [role,{key:'enemyFronts',rect:[i*128,0,128,128],facing:'down',jet:role!=='scarab'}]));
   const earlyArt = {
     fighter:     {key:'enemyAlt', rect:[25,25,174,218], facing:'up'},
     interceptor: {key:'enemyAlt', rect:[744,25,190,221], facing:'up'},
@@ -40,6 +48,8 @@ function createCombatV6({
     battery: {kind:'gun', hp:14, rx:25, ry:24, rate:2.8},
     flak: {kind:'mini', hp:14, rx:25, ry:25, rate:2.25},
     launcher: {kind:'missile', hp:18, rx:28, ry:25, rate:3.1, reward:true},
+    prism: {kind:'plasma',hp:19,rx:26,ry:25,rate:2.9,reward:true},
+    cutter: {kind:'mini',hp:11,rx:15,ry:25,rate:2.30,cruise:41},
     patrol: {kind:'gun', hp:14, rx:19, ry:35, rate:2.75, cruise:29},
     gunboat: {kind:'plasma', hp:29, rx:30, ry:51, rate:3.15, cruise:17, reward:true}
   };
@@ -70,6 +80,16 @@ function createCombatV6({
     shore:   {text:'Batteries de rive en vue',            roles:['battery','fighter','launcher']},
     coast:   {text:'Patrouilleur et batteries de rive', roles:['flak','patrol','launcher']},
     river:   {text:'Vedettes armées dans le chenal',     roles:['patrol','fighter','gunboat']},
+    talons:   {text:'Gypaètes en interception',          roles:['harrier','fighter','harrier']},
+    minefield:{text:'Mouilleur de mines cryogéniques',  roles:['layer','drone','harrier']},
+    icewall:  {text:'Batteries à prismes en approche',  roles:['prism','layer','flak','harrier']},
+    relays:   {text:'Tourelles avancées sur les flancs',roles:['launcher','interceptor','prism']},
+    cutters:  {text:'Vedettes rapides dans le détroit', roles:['cutter','harrier','cutter']},
+    flotilla: {text:'Flottille escortée en approche',   roles:['cutter','gunboat','cutter','flak']},
+    mirages:  {text:'Ailes Mirage sur les flancs',      roles:['mirage','mirage','interceptor']},
+    scarabs:  {text:'Escorte de scarabées blindés',    roles:['scarab','support','scarab']},
+    sandwall: {text:'Ligne de défense du désert',       roles:['flak','mirage','launcher','scarab']},
+    ambush:   {text:'Embuscade de sabre en approche',   roles:['mirage','mirage','scarab','harrier']},
     strike:  {text:'Escadron d’assaut en approche',       roles:['drone','interceptor','diver','fighter']}
   };
   const missions = [
@@ -80,8 +100,10 @@ function createCombatV6({
     [[2,'drones'],[8,'dive'],[14,'wedge'],[21,'cover'],[28,'coast'],[38,'bombers'],[44,'drones'],[51,'strike']],
     [[2,'pincer'],[8,'river'],[14,'bombers'],[21,'fleet'],[28,'drones'],[38,'cover'],[45,'dive'],[52,'fleet']],
     [[2,'shore'],[8,'dive'],[14,'strike'],[20,'bombers'],[28,'shore'],[38,'cover'],[45,'dive'],[52,'fleet']],
-    [[2,'pincer'],[8,'strike'],[14,'drones'],[20,'cover'],[27,'fleet'],[36,'coast'],[43,'bombers'],[51,'strike']]
+    [[2,'pincer'],[8,'strike'],[14,'drones'],[20,'cover'],[27,'fleet'],[36,'coast'],[43,'bombers'],[51,'strike']],
+    ...FRONT_MISSIONS.map(front => front.waves)
   ];
+  const originalSurfaceEscorts = ['patrol','cutter','flak','cutter','patrol','cutter','prism','flak'];
   const cooldowns = {blue:15, green:17, red:15, gold:18};
   const warningQueue = [];
   const trails = [];
@@ -122,11 +144,11 @@ function createCombatV6({
     const side = entry === 'left' ? 1 : entry === 'right' ? -1 : homeX < W / 2 ? 1 : -1;
     const enemy = {
       id:'enemy-' + ++serial, targetType:'enemy', role, type:def.type,
-      art:(S.level < 4 ? earlyArt : lateArt)[role],
+      art:frontArt[role] || (S.level < 4 ? earlyArt : lateArt)[role],
       x, y, homeX, hp:health, maxHp:health, rx:def.rx, ry:def.ry,
       vx:0, vyNow:def.speed, t:0, state:'entry', stateTime:0, side, entry,
       shoot:.85 + (opts.slot ?? 0) * .36, flash:0, burst:0, burstDelay:0,
-      shield:role === 'shield' ? health * .82 : 0, link:0, elite:!!opts.elite,
+      shield:role === 'shield' ? health * .82 : role === 'scarab' ? health * .55 : 0, link:0, elite:!!opts.elite,
       group:opts.group ?? 0, slot:opts.slot ?? 0, phase:(opts.slot ?? 0) * .36,
       angle:0, dodge:0, evadeCooldown:0, aimX:homeX, aimY:H - 120
     };
@@ -139,7 +161,7 @@ function createCombatV6({
     const period = terrainPeriod();
     let match;
     let distance = Infinity;
-    for (const [x, mapY] of shoreSites[S.level]) {
+    for (const [x, mapY] of shoreSites[S.level % shoreSites.length]) {
       if ((x < W / 2) !== (side < 0)) continue;
       const wrapped = ((mapY + offset) % period + period) % period;
       const y = wrapped > period - 140 ? wrapped - period : wrapped;
@@ -157,13 +179,14 @@ function createCombatV6({
     const def = surfaceRoles[role];
     if (!def) return null;
     const naval = Boolean(def.cruise);
-    const site = naval ? {x:W / 2 + (role === 'gunboat' ? side * 16 : 0), y:role === 'gunboat' ? -130 : -48}
+    const lane = S.level===8 ? 0 : role === 'cutter' ? 39 : role === 'gunboat' ? 16 : 0;
+    const site = naval ? {x:W / 2 + side*lane, y:role === 'gunboat' ? -130 : -48}
       : pickShoreSite(side);
     if (!site) return null;
     const health = def.hp * (1 + S.level * .13);
     const surface = {
       id:'ground-' + ++serial, targetType:'ground', role, naval, kind:def.kind, ...site, homeX:site.x,
-      hp:health, maxHp:health, rx:def.rx, ry:def.ry, shoot:1.1 + slot * .38,
+      hp:health, maxHp:health, rx:def.rx*(naval && S.level===8 ? .72 : 1), ry:def.ry*(naval && S.level===8 ? .72 : 1), shoot:1.1 + slot * .38,
       warn:0, flash:0, fireFlash:0, dead:false, deathAge:0, t:0, angle:0, targetAngle:Math.PI / 2
     };
     S.turrets.push(surface);
@@ -180,14 +203,15 @@ function createCombatV6({
     const next = mission[waveIndex];
     if (next && now >= next[0]) {
       const pattern = patterns[next[1]];
-      const waveSize = pattern.roles.length;
       const group = ++waveIndex;
+      const squad = S.level < 8 && group === 2 ? [...pattern.roles,originalSurfaceEscorts[S.level]] : pattern.roles;
+      const waveSize = squad.length;
       showMsg(pattern.text, 1.05);
       for (let i = 0; i < waveSize; i++) {
-        const role = pattern.roles[i];
-        const flank = next[1] === 'pincer' && i < 2;
+        const role = squad[i];
+        const flank = (next[1] === 'pincer' || role === 'mirage') && i < 2;
         const lane = W / 2 + (i - (waveSize - 1) / 2) * (next[1] === 'wedge' ? 92 : 100);
-        const side = i === 0 ? -1 : 1;
+        const side = i < waveSize / 2 ? -1 : 1;
         const surface = surfaceRoles[role];
         const entry = flank ? i ? 'right' : 'left' : 'top';
         const x = surface ? surface.cruise ? W / 2 : side < 0 ? 65 : W - 65 : lane;
@@ -245,12 +269,12 @@ function createCombatV6({
         break;
       case 'detect':
         targetVy = pace * .42;
-        if (o.role === 'interceptor' || o.role === 'diver') {
+        if (['interceptor','diver','harrier','mirage'].includes(o.role)) {
           targetX = clamp(predictedX - o.side * 55, 48, W - 48);
           o.aimX = predictedX;
           o.aimY = clamp(p.y + playerVy * .15, H * .62, H - 35);
         }
-        if (t > (o.role === 'diver' ? .78 : .3)) setState(o, 'attack');
+        if (t > (o.role === 'diver' || o.role === 'mirage' ? .78 : .3)) setState(o, 'attack');
         break;
       case 'attack':
         if (o.role === 'diver') {
@@ -258,6 +282,26 @@ function createCombatV6({
           targetVy = 395 + S.level * 9;
           maxVx = 267;
           if (o.y >= o.aimY + 40) setState(o, 'retreat');
+        } else if (o.role === 'mirage') {
+          // Sweep a lane fixed during the warning; the pilot can change direction after lock.
+          targetX = o.aimX + o.side * 62;
+          targetVy = 105;
+          maxVx = 270;
+          if (t > 1.3) setState(o,'reposition');
+        } else if (o.role === 'harrier') {
+          targetX = clamp(predictedX + o.side * 75,48,W-48);
+          targetVy = pace * .59;
+          if (o.evadeCooldown <= 0 && nearPlayerShot(o)) {
+            o.dodge = o.x < 95 ? 1 : o.x > W-95 ? -1 : o.x < p.x ? -1 : 1;
+            setState(o,'evade');
+          }
+        } else if (o.role === 'layer') {
+          targetX = clamp(o.homeX + Math.sin(o.t*.92 + o.phase)*112,51,W-51);
+          targetVy = pace * .58;
+        } else if (o.role === 'scarab') {
+          const ally = S.enemies.find(e => e.group===o.group && e.role==='support' && !e.dead);
+          targetX = ally ? clamp(ally.x + (o.slot % 2 ? 1 : o.side) * 67,47,W-47) : predictedX;
+          targetVy = ally ? clamp(ally.y + 62 - o.y, 34, pace) : pace * .62;
         } else if (o.role === 'interceptor') {
           targetX = clamp(predictedX + o.side * 96, 55, W - 55);
           targetVy = 108;
@@ -297,7 +341,7 @@ function createCombatV6({
         targetX += o.side * 64;
         targetVy = pace * .84;
         if (o.y > H * .56 || o.t > 12) setState(o, 'retreat');
-        else if (t > .95) setState(o, 'attack');
+        else if (t > .95) setState(o, o.role === 'mirage' ? 'detect' : 'attack');
         break;
       case 'retreat':
         targetX += o.side * 100;
@@ -305,6 +349,14 @@ function createCombatV6({
         break;
     }
 
+    if (o.role !== 'diver' && o.state === 'attack') {
+      // Preserve separate flight lanes as an escort turns around its leader.
+      for (const wingman of S.enemies) {
+        if (wingman === o || wingman.group !== o.group || Math.abs(wingman.y-o.y)>64) continue;
+        const gap = o.x-wingman.x;
+        if (Math.abs(gap)<43) targetX += (Math.sign(gap) || o.side) * (43-Math.abs(gap));
+      }
+    }
     const desired = clamp((targetX - o.x) * 3.2, -maxVx, maxVx);
     const oldVx = o.vx;
     o.vx = approach(o.vx, desired, response, dt);
@@ -315,7 +367,7 @@ function createCombatV6({
   }
 
   function spawnHostile({x, y, angle, speed, size = 10, kind = 'bolt', homing = 0, ttl = 7, color}) {
-    const cap = [20,23,25,27,27,29,31,34][S.level] + (S.boss ? 6 : 0);
+    const cap = Math.min(43, 20 + Math.ceil(S.level * 1.8)) + (S.boss ? 6 : 0);
     if (S.eBullets.length >= cap || !Number.isFinite(x + y + angle + speed) || y < 5 || y > H - 24) return false;
     S.eBullets.push({x, y, angle, speed, vx:Math.cos(angle) * speed, vy:Math.sin(angle) * speed,
       size, kind, homing, ttl, color, life:0});
@@ -354,13 +406,22 @@ function createCombatV6({
     if (o.burst) {
       o.burstDelay -= dt;
       if (o.burstDelay <= 0) {
-        spreadAt(o, p, 1, 0, {speed:speed + 38, size:9, kind:'ion'});
+        spreadAt(o, {x:clamp(p.x+playerVx*Math.min(.26,.08+S.level*.018),28,W-28),y:p.y}, 1, 0, {speed:speed + 38, size:9, kind:'ion'});
         o.burst--;
         o.burstDelay = .145;
       }
     }
     if (o.shoot > 0) return;
-    if (o.role === 'bomber') {
+    if (o.role === 'layer') {
+      spawnHostile({x:o.x,y:o.y+o.ry,angle:Math.PI/2,speed:69,size:18,kind:'mine',ttl:3});
+    } else if (o.role === 'harrier') {
+      const aim = {x:clamp(p.x+playerVx*.32,35,W-35),y:p.y};
+      spreadAt(o,aim,2,.12,{speed:speed+21,size:9,kind:'ion'});
+    } else if (o.role === 'mirage') {
+      spreadAt(o,{x:o.aimX,y:o.aimY},3,.145,{speed:speed+8,size:9,kind:'flame'});
+    } else if (o.role === 'scarab') {
+      spreadAt(o,p,o.shield>0 ? 2 : 3,.22,{speed:speed*.88,size:13,kind:'plasma'});
+    } else if (o.role === 'bomber') {
       const missile = (o.shots || 0) % 2 === 0;
       spreadAt(o, p, missile ? 2 : 3, missile ? .24 : .18, missile
         ? {speed:speed * .79, size:13, kind:'missile', homing:.58, ttl:5.1}
@@ -404,7 +465,7 @@ function createCombatV6({
       if (t.dead) t.deathAge += dt;
       t.y += (scroll + cruise * (t.dead ? .10 : 1)) * dt;
       if (t.naval && !t.dead) {
-        const nextX = t.homeX + Math.sin(t.t * .95) * (t.role === 'patrol' ? 20 : 12);
+        const nextX = t.homeX + Math.sin(t.t * (t.role==='cutter' ? 1.3 : .95)) * (S.level===8 ? 7 : t.role==='cutter' ? 23 : t.role === 'patrol' ? 20 : 12);
         t.angle = Math.atan2(t.x - nextX, (scroll + cruise) * dt);
         t.x = nextX;
       }
@@ -421,7 +482,7 @@ function createCombatV6({
       t.warn = t.shoot <= .48 ? clamp(1 - t.shoot / .48, 0, 1) : 0;
       if (t.shoot > 0) continue;
       const missile = t.kind === 'missile';
-      const count = t.kind === 'mini' ? 4 : t.role === 'gunboat' ? 3 : missile ? 1 : 2;
+      const count = t.role === 'cutter' ? 2 : t.kind === 'mini' ? 4 : t.kind === 'plasma' ? 3 : missile ? 1 : 2;
       const aim = {x:t.x + Math.cos(t.targetAngle) * 500, y:t.y + Math.sin(t.targetAngle) * 500};
       const fired = spreadAt(t, aim, count, t.role === 'gunboat' ? .24 : .13, {
         kind:missile || t.kind === 'plasma' ? t.kind : 'bolt',
@@ -429,7 +490,7 @@ function createCombatV6({
       });
       t.warn = 0;
       if (fired) t.fireFlash = .18;
-      t.shoot = fired ? def.rate : .74;
+      t.shoot = fired ? def.rate * Math.max(.76,1-S.level*.016) : .74;
     }
   }
 
@@ -586,35 +647,25 @@ function createCombatV6({
     if (!S.running || p.cool > 0 || p.dead || S.bossDeath) return;
     const sh = ship();
     const tier = Math.min(5, S.weapon);
-    const pair = (dx, vx, vy, damage, size, opts) => {
-      addPlayerBullet(p, -dx, -vx, vy, damage, size, opts);
-      addPlayerBullet(p, dx, vx, vy, damage, size, opts);
-    };
-    p.cool = sh.fire * (1 - (tier - 1) * .035);
-    if (sh.id === 'blue') {
-      addPlayerBullet(p, 0, 0, -825, 2.2 + tier * .16, 8 + tier);
-      if (tier >= 2) pair(12, 9, -810, .78, 6);
-      if (tier >= 4) pair(25, 84, -755, .9, 8);
-      if (tier === 5) addPlayerBullet(p, 0, 0, -870, 1.55, 11);
-    } else if (sh.id === 'green') {
-      const piercing = tier >= 3;
-      addPlayerBullet(p, 0, 0, -725, 3 + tier * .39, 11 + tier * 1.4,
-        {piercing, remaining:piercing ? tier >= 5 ? 3 : 2 : 1});
-      if (tier >= 2) pair(19, tier >= 4 ? 46 : 17, -740, tier >= 4 ? 1.16 : .73, 7 + tier);
-    } else if (sh.id === 'red') {
-      addPlayerBullet(p, 0, 0, -935, 2.14 + tier * .14, 7);
-      if (tier >= 2) pair(11, 24, -920, .72, 6);
-      if (tier >= 3) pair(20, 101, -860, .63, 7);
-      if (tier === 5) pair(29, 182, -778, .63, 7);
-    } else {
-      const halfSpread = tier === 1 ? 0 : tier >= 4 ? 2 : 1;
-      for (let i = -halfSpread; i <= halfSpread; i++) {
-        addPlayerBullet(p, i * 15, i * (tier >= 4 ? 75 : 34), -785 - tier * 12,
-          i ? .8 + tier * .08 : 2.02 + tier * .23, i ? 8 : 8 + tier * 1.4);
-      }
-      if (tier === 5) pair(35, 225, -745, .85, 9);
-    }
-    sfx('shot');
+    const equipment = S.equipment;
+    const frame = FlightArms.pose(S.bank,S.levelTime);
+    const axial = FlightArms.muzzle(p,0,-37,frame);
+    const stock = {
+      blue:[-825,2.2+tier*.16,8+tier], green:[-725,3+tier*.39,11+tier],
+      red:[-935,2.14+tier*.14,7], gold:[-797,2.02+tier*.23,8+tier]
+    }[sh.id];
+    p.cool = sh.fire * (1 - (tier-1)*.035);
+    const corePierces = sh.id==='green' && equipment.includes('u2');
+    addPlayerBullet(p,0,0,stock[0],stock[1],stock[2],{...axial,piercing:corePierces,remaining:corePierces ? (equipment.includes('u4') ? 3 : 2) : 1});
+    FlightArms.forEachMount(sh.id,equipment,(mount,side,key) => {
+      const socket = FlightArms.mountPose(mount,side,key,p);
+      const tip = FlightArms.muzzle(p,socket.x,socket.y-12,frame);
+      const piercing = sh.id === 'green' && (key === 'u2' || key === 'u4');
+      addPlayerBullet(p,0,side*mount.spread,-mount.speed,mount.damage,mount.size,
+        {...tip, piercing, remaining:piercing ? (key === 'u4' ? 3 : 2) : 1});
+    });
+    p.muzzleFlash = .082;
+    sfx('shot'+sh.id);
   }
 
   function missileTargets(b, targets, assigned) {
@@ -624,7 +675,8 @@ function createCombatV6({
       if (target.dead || target.hp <= 0 || target.y > b.y + 26) continue;
       const cost = Math.hypot(target.x - b.x, target.y - b.y)
         + (assigned.get(target.id) || 0) * 340
-        + (target.kind === 'bossCore' ? 230 : 0);
+        + (target.kind === 'bossCore' ? 230 : 0)
+        - (b.ship === 'blue' && ['armor','shield'].includes(target.kind) ? 95 : 0);
       if (cost < bestCost) {
         bestCost = cost;
         best = target;
@@ -741,6 +793,14 @@ function createCombatV6({
       const x = b.x;
       const y = b.y;
       b.life = (b.life || 0) + dt;
+      if (b.kind === 'mine' && b.life >= 1.65) {
+        S.eBullets.splice(i,1);
+        for (const offset of [-.68,-.27,.27,.68]) {
+          spawnHostile({x:b.x,y:b.y,angle:Math.PI/2+offset,speed:150+S.level*4,size:8,kind:'ion'});
+        }
+        addImpact(b.x,b.y,'#9edfff',24,true,true);
+        continue;
+      }
       if (b.homing && !p.dead && b.life < 2.5 && p.y > b.y - 65) {
         const heading = Math.atan2(b.vy, b.vx);
         const aim = Math.atan2(p.y - b.y, p.x - b.x);
@@ -943,7 +1003,7 @@ function createCombatV6({
     }
     ctx.restore();
     for (const o of S.enemies) {
-      if (o.role === 'diver' && o.state === 'detect') {
+      if ((o.role === 'diver' || o.role === 'mirage') && o.state === 'detect') {
         ctx.save();
         ctx.strokeStyle = 'rgba(255,152,111,.52)';
         ctx.lineWidth = 2;
@@ -1008,9 +1068,13 @@ function createCombatV6({
         ctx.fillRect(-1.8, 12, 3.6, 9 + Math.sin(b.age * 45) * 3);
       } else {
         const width = b.size * .62;
-        if (b.ship === 'gold' || b.ship === 'green') {
-          ring(0, 0, width * .7, half);
-          ctx.fill();
+        if (b.ship === 'gold') {
+          ctx.beginPath();ctx.moveTo(0,-half);ctx.lineTo(width,0);ctx.lineTo(0,half*.72);ctx.lineTo(-width,0);ctx.closePath();ctx.fill();
+        } else if (b.ship === 'green') {
+          ring(0,0,width*.77,half*.78);ctx.fill();
+          ctx.fillRect(-width*.59,half*.24,width*1.18,3);
+        } else if (b.ship === 'red') {
+          ctx.fillRect(-width*.48,-half*.77,width*.53,half*1.2);ctx.fillRect(width*.22,-half*.42,width*.48,half*1.1);
         } else ctx.fillRect(-width * .5, -half, width, half * 1.85);
         ctx.fillStyle = core;
         ctx.fillRect(-width * .22, -half * .78, width * .44, half * 1.32);
@@ -1027,7 +1091,17 @@ function createCombatV6({
       ctx.translate(b.x, b.y);
       ctx.rotate(Math.atan2(b.vy, b.vx));
       ctx.fillStyle = b.color && b.color.startsWith('#') ? b.color : edge;
-      if (b.kind === 'missile') {
+      if (b.kind === 'mine') {
+        ctx.strokeStyle = '#b9f6ff';
+        ctx.fillStyle = '#396080';
+        ctx.lineWidth = 2;
+        ring(0,0,radius,radius);ctx.fill();ctx.stroke();
+        ring(0,0,13 + 10*Math.min(1,b.life/1.65),13 + 10*Math.min(1,b.life/1.65));ctx.stroke();
+        ctx.fillStyle = b.life > 1.12 ? '#ffc272' : '#ddf9ff';
+        ctx.fillRect(-3,-3,6,6);
+        ctx.restore();
+        continue;
+      } else if (b.kind === 'missile') {
         ctx.beginPath();
         ctx.moveTo(radius * 1.55, 0);
         ctx.lineTo(-radius * .95, radius * .82);
